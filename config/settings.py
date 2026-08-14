@@ -66,9 +66,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Postgres in every environment, including on a laptop. Running SQLite
-# locally and Postgres in production is the difference that hides bugs
-# until deploy day.
+# Postgres in every environment, including on a laptop (ADR-0005).
 DATABASES = {"default": env.db("DATABASE_URL")}
 
 _PASSWORD_VALIDATION = "django.contrib.auth.password_validation"

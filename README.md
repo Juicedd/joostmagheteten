@@ -49,6 +49,18 @@ test client. The rules for writing tests here live in
 [`CLAUDE.md`](CLAUDE.md#testing) — that is the single source of truth, so it is
 not restated in this file. `recipes/tests/` is the prior art to copy.
 
+## Linting and formatting
+
+```bash
+uv run ruff check .          # report problems
+uv run ruff check --fix .    # fix what can be fixed automatically
+uv run ruff format .         # format
+```
+
+Line length is **88**, not the pycodestyle default of 79 — configured in
+[`pyproject.toml`](pyproject.toml). If your editor is showing E501 warnings at
+79 characters, point it at the project config.
+
 ## Configuration
 
 Every environment variable the project reads is documented in
@@ -61,8 +73,8 @@ container.
 Production hardening is not in `config/settings.py` yet — it lands with the
 deploy in ticket #3. Until then the settings module is only safe to run locally.
 
-Postgres runs locally as well as in production, deliberately. SQLite on a laptop
-and Postgres in production is the difference that hides bugs until deploy day.
+Postgres runs locally as well as in production, deliberately — see
+[ADR-0005](docs/adr/0005-postgres-locally-too.md).
 
 ## Architecture decisions
 
@@ -70,3 +82,4 @@ and Postgres in production is the difference that hides bugs until deploy day.
 - [ADR-0002](docs/adr/0002-english-identifiers-dutch-interface.md) — English identifiers, Dutch interface
 - [ADR-0003](docs/adr/0003-paid-render-with-photos-on-cloudflare-r2.md) — paid Render, photos on Cloudflare R2
 - [ADR-0004](docs/adr/0004-no-ads-no-cookies-no-consent-banner.md) — no ads, no cookies, no consent banner
+- [ADR-0005](docs/adr/0005-postgres-locally-too.md) — Postgres on a laptop too, not SQLite

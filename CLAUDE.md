@@ -27,4 +27,12 @@ This project has **one test seam: the HTTP boundary**, driven through Django's t
 - **An authenticated client** (`force_login`) — for anything staff-only, including previewing a concept recept and the whole authoring flow.
 - **Negative assertions** (`assertNotContains`, absence checks) — for anything that must never reach a visitor: oordelen, concept recepten, an absent bron.
 
-Run the suite with `uv run python manage.py test`.
+Run the suite with `uv run python manage.py test`. It needs the local Postgres
+container running (`docker compose up -d db`) — see ADR-0005 for why there is no
+SQLite fallback.
+
+## Linting
+
+`ruff` is the linter and formatter. Line length is **88**, configured in
+`pyproject.toml`. Run `uv run ruff check .` and `uv run ruff format .` before
+committing.

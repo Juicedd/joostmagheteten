@@ -1,8 +1,5 @@
-# Local Postgres for development and tests.
-#
-# ADR-0003 puts production on Render's managed Postgres. This exists so a
-# laptop runs the same engine as production -- SQLite locally and Postgres in
-# production is exactly the difference that hides bugs until deploy day.
+# Local Postgres for development and tests -- the same engine production runs
+# on Render. See ADR-0005 for why a laptop does not get SQLite instead.
 
 services:
   db:
