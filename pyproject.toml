@@ -1,0 +1,26 @@
+[project]
+name = "joostmagheteten"
+version = "0.1.0"
+description = "Dutch recipe website - joostmagheteten.nl"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.1",
+    "psycopg[binary]>=3.2",
+    "django-environ>=0.11",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.3",
+]
+
+[tool.ruff]
+# 88, not the pycodestyle default of 79. 79 is a punch-card era number that
+# Django's own source ignores; 88 is what ruff and black default to.
+line-length = 88
+# Django generates migrations; they are not ours to style.
+exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+# pycodestyle errors, pyflakes, import sorting, pyupgrade.
+select = ["E", "F", "I", "UP"]
