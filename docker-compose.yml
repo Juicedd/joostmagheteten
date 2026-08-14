@@ -1,0 +1,25 @@
+# Local Postgres for development and tests.
+#
+# ADR-0003 puts production on Render's managed Postgres. This exists so a
+# laptop runs the same engine as production -- SQLite locally and Postgres in
+# production is exactly the difference that hides bugs until deploy day.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: joostmagheteten
+      POSTGRES_USER: joostmagheteten
+      POSTGRES_PASSWORD: joostmagheteten
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U joostmagheteten"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

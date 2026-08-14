@@ -1,0 +1,10 @@
+[project]
+name = "joostmagheteten"
+version = "0.1.0"
+description = "Dutch recipe website - joostmagheteten.nl"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.1",
+    "psycopg[binary]>=3.2",
+    "django-environ>=0.11",
+]
