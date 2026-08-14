@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Django
+*.sqlite3
+/staticfiles/
+/media/
+local_settings.py
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+
+# Obsidian reference notes — kept locally as examples, never committed.
+# ADR-0004 and CONTEXT.md establish that oordeel scores (voedingsscore,
+# budgetscore, rating) are never published; a public repo is publishing.
+/Andijvie.md
+/Quesadilla met Zoete Aardappel en Zwarte Bonen.md
