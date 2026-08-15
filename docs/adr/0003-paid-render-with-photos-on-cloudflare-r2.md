@@ -10,7 +10,7 @@ Photos are on a second vendor because every Render option is worse. Without a di
 
 The build phase runs on the free tier, and that is not a departure from the decision above — the reasoning above is entirely about *visitors*, and during the build there are none. Both free and paid Render services get an `onrender.com` subdomain, and custom domains are free on either plan, so the plan is what costs money and the address never was. The deploy pipeline is therefore proven for nothing in #3, and the two paid plans start at different moments:
 
-- **Postgres** upgrades in #7, before the deployed database holds a recept that is not still upstream in Obsidian. A free Postgres expires 30 days after creation, with a 14-day grace period, after which Render deletes it and its data — and per ADR-0001 the Django database is canonical. Until then the deployed database must stay reproducible from migrations, which #3 verifies rather than assumes.
+- **Postgres** upgrades in #7, before the deployed database holds a recept at all. A free Postgres expires 30 days after creation, with a 14-day grace period, after which Render deletes it and its data, and free instances support no backups of any kind. Per ADR-0001 the Django database is canonical, and a notitie in Obsidian is not a copy of a recept — so a recept lost with the database is lost outright, with nothing upstream to re-import. Until the upgrade the deployed database must stay reproducible from migrations, which #3 verifies rather than assumes.
 - **The Starter instance** upgrades in #12, at launch. The cold start is what a visitor at a hob would feel; while there are no visitors, a minute of white screen costs nothing.
 
 ## Consequences
