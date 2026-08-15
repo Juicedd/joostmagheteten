@@ -5,10 +5,10 @@ Everything that differs between a laptop and production comes from the
 environment -- see .env.example for the complete list. Secrets are never
 committed, and there is no second settings module to keep in sync.
 
-Production hardening -- SECURE_SSL_REDIRECT, HSTS, secure cookies,
-SECURE_PROXY_SSL_HEADER -- is deliberately absent rather than merely switched
-off, and lands with the deploy in ticket #3. Until then this module is only
-safe to run locally.
+The production hardening at the bottom of this file hangs off one environment
+variable rather than off DEBUG, because tests run with DEBUG=False too and a
+laptop has no TLS to redirect to. `manage.py check --deploy` runs on every
+deploy (build.sh) and fails the build if any of it goes missing.
 """
 
 from pathlib import Path
@@ -20,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     DJANGO_ALLOWED_HOSTS=(list, []),
+    DJANGO_SERVED_OVER_HTTPS=(bool, False),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -39,6 +40,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves everything in STATIC_ROOT. There is no separate web server in
+    # front of Django on Render, so without this the deployed site has no CSS.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -87,4 +91,36 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # collectstatic writes each file under a name containing a hash of its
+    # contents, so a changed file is a changed URL and WhiteNoise can tell
+    # browsers to cache it forever. It also writes gzip and brotli copies.
+    "staticfiles": {"BACKEND": "config.storage.CollectedStaticFilesStorage"},
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Production hardening -------------------------------------------------
+# True only where something in front of Django terminates TLS -- Render's
+# proxy does. False on a laptop and in tests, where there is no HTTPS at all
+# and switching this on would redirect every request into nowhere.
+if env("DJANGO_SERVED_OVER_HTTPS"):
+    # Render forwards the visitor's original scheme here. Without it Django
+    # sees plain HTTP behind the proxy, redirects forever, and rejects admin
+    # logins because the Origin header says https and the request says http.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    # A year, and a promise: a browser that has seen this header refuses plain
+    # HTTP for this hostname until it expires. Render serves HTTPS on both
+    # onrender.com and custom domains, so there is nothing to lose by it.
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # Inert on a subdomain of onrender.com -- preloading is something only the
+    # owner of a domain can ask for. It is here for the custom domain later,
+    # and because `check --deploy` warns without it.
+    SECURE_HSTS_PRELOAD = True
+    # ADR-0004 means a visitor is never handed a cookie; these two are about
+    # the author's session and CSRF cookies in the admin.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

@@ -1,0 +1,71 @@
+# The deployed environment, in the repo rather than in a dashboard. Render
+# calls this a Blueprint; README.md ("Deploy") covers creating it the once.
+#
+# Everything here is on a free plan while the site has no visitors, which is
+# not a departure from ADR-0003 -- the paid Postgres starts in #7 and the paid
+# instance at launch in #12. What that costs in the meantime, and what it means
+# for what may live in this database, is in README.md ("Deploy").
+
+databases:
+  - name: joostmagheteten-db
+    plan: free
+    region: frankfurt
+    # The same major version as docker-compose.yml, which is the point of
+    # ADR-0005: one engine, laptop and production alike.
+    postgresMajorVersion: "17"
+    databaseName: joostmagheteten
+    user: joostmagheteten
+    # No connections from the internet. The web service reaches it over
+    # Render's private network, and nothing else has any business here.
+    ipAllowList: []
+
+services:
+  - type: web
+    name: joostmagheteten
+    runtime: python # picks up .python-version, and uv because uv.lock is here
+    plan: free
+    region: frankfurt # same region as the database, or there is no private network
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: bash build.sh
+    # No --bind: gunicorn listens on 0.0.0.0:$PORT of its own accord whenever
+    # PORT is set in the environment, and Render always sets it.
+    startCommand: uv run --no-dev gunicorn config.wsgi:application
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: joostmagheteten-db
+          property: connectionString
+
+      # Render knows the site's hostname and Django needs it by another name.
+      # Self-referencing the service copies RENDER_EXTERNAL_HOSTNAME across, so
+      # settings.py never has to learn where it is hosted.
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          name: joostmagheteten
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+      - key: DJANGO_DEBUG
+        value: "false"
+
+      # Render terminates TLS in front of Django: switches on the redirect,
+      # HSTS and the secure cookies. See config/settings.py.
+      - key: DJANGO_SERVED_OVER_HTTPS
+        value: "true"
+
+      # Entered in Render at Blueprint creation, never committed. Not
+      # generateValue: Render does not document how long a generated value is,
+      # and `check --deploy` rejects a secret key under 50 characters.
+      - key: DJANGO_SECRET_KEY
+        sync: false
+
+      # The author's admin account, created by build.sh on the first deploy
+      # into an empty database. Changing the password in the admin afterwards
+      # is safe -- a later deploy leaves an existing account alone.
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
