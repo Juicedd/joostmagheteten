@@ -29,7 +29,6 @@ Generate a secret key with:
 uv run python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"
 ```
 
-
 ## Running
 
 ```bash
