@@ -31,6 +31,10 @@ services:
     # No --bind: gunicorn listens on 0.0.0.0:$PORT of its own accord whenever
     # PORT is set in the environment, and Render always sets it.
     startCommand: uv run --no-dev gunicorn config.wsgi:application
+    # Render waits for this path to answer before it calls a deploy live. The
+    # home page touches no database, so this proves the process is up and
+    # serving -- not that the database behind it is healthy.
+    healthCheckPath: /
     envVars:
       - key: DATABASE_URL
         fromDatabase:

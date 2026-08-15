@@ -114,11 +114,27 @@ the Django database is canonical and a notitie in Obsidian is not a copy of a
 recept — so until the paid Postgres arrives (#7), **nothing may live in the
 deployed database that a push to `main` cannot put back**.
 
-Which makes rebuilding it a routine rather than a disaster. Delete the database
-in the Render dashboard, re-sync the Blueprint so it is recreated and rewired,
-then push to `main`: the site comes back with its migrations applied and the
-author's account in place. That is also exactly what recovering from the 30-day
-expiry looks like, and it is worth doing once on purpose.
+Which makes rebuilding it a routine rather than a disaster:
+
+1. **Delete the database** in the Render dashboard. It has to go first — a
+   workspace may only have one free Postgres at a time.
+2. **Push a commit that changes `render.yaml`.** Any change will do.
+
+Step 2 is not the same event as a normal deploy, and the difference is the one
+worth knowing. A push deploys the *code* of a service that already exists. Only
+a push that touches `render.yaml` makes Render **sync the Blueprint**, which is
+what reconciles the resources — and a database that is in `render.yaml` but not
+in the dashboard gets recreated by that sync. Push code alone after deleting
+the database and the deploy will simply fail at `migrate`, against a
+`DATABASE_URL` still pointing at a database that no longer exists.
+
+(The **Manual Sync** button in the dashboard does the same job, but it only
+appears once **Auto Sync** is set to **No** on the Blueprint's settings page.)
+
+The sync recreates the database, rewrites `DATABASE_URL`, and redeploys. Watch
+that build apply the migrations and print `Created superuser`, then log in. That
+is also exactly what recovering from the 30-day expiry looks like, and it is
+worth doing once on purpose.
 
 The free web service sleeps after 15 minutes idle and takes about a minute to
 wake — which is why it stays free only until there are visitors to feel it
