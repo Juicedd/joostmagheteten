@@ -424,8 +424,9 @@ class Step(models.Model):
         "volgorde",
         default=0,
         help_text=(
-            "Doorlopend over het hele recept. Een nieuwe fase telt gewoon "
-            "door en begint niet opnieuw bij 1."
+            "Bepaalt de volgorde, niet het nummer: lage nummers staan "
+            "bovenaan, en de pagina telt de stappen zelf -- doorlopend over "
+            "de fases heen. Gaten en dubbele nummers ziet een lezer dus niet."
         ),
     )
     phase = models.CharField(
@@ -445,6 +446,8 @@ class Step(models.Model):
 
     # Where this step falls in its recept, which is not a field: it is a fact
     # about the whole sequence, and only Recipe.numbered_steps can count it.
+    # A step that never went through there has no number to print, which is
+    # why the page reaches the steps through Recipe.phases and not otherwise.
     number = None
 
     class Meta:

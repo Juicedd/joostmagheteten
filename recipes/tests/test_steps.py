@@ -2,27 +2,13 @@
 Tests for the steps of a recept, grouped into fases, as a reader meets them.
 
 See CLAUDE.md for how tests are written in this project. Arranging happens
-through the ORM, the same way test_ingredient_lines.py does it, and every
-assertion is made on what the page actually says.
+through the ORM, in arranging.py, and every assertion is made on what the
+page actually says.
 """
 
 from django.test import TestCase
 
-from recipes.models import Recipe, Step
-
-
-def published_recipe(title):
-    return Recipe.objects.create(title=title, status=Recipe.Status.PUBLISHED)
-
-
-def step(recipe, position, text, phase=""):
-    return Step.objects.create(recipe=recipe, position=position, text=text, phase=phase)
-
-
-def texts_in_reading_order(page, *texts):
-    """The given fragments, sorted by where they appear on the rendered page."""
-    html = page.content.decode()
-    return sorted(texts, key=html.index)
+from recipes.tests.arranging import in_reading_order, published_recipe, step
 
 
 class StepRenderingTests(TestCase):
@@ -47,7 +33,7 @@ class StepRenderingTests(TestCase):
         self.assertContains(page, "<h3>Mise en place</h3>", html=True)
         self.assertContains(page, "<h3>Bakken</h3>", html=True)
         self.assertEqual(
-            texts_in_reading_order(page, "Mise en place", "Snijd", "Bakken", "Verhit"),
+            in_reading_order(page, "Mise en place", "Snijd", "Bakken", "Verhit"),
             ["Mise en place", "Snijd", "Bakken", "Verhit"],
         )
 
@@ -75,6 +61,28 @@ class StepRenderingTests(TestCase):
             html=True,
         )
 
+    def test_a_reader_is_never_shown_the_volgorde_the_author_typed(self):
+        # The volgorde puts the steps in order and the page counts them, which
+        # is only the same number while a recept is tidy. An author who
+        # numbers 10, 20, 30 to leave room -- or who deletes a step and
+        # renumbers nothing -- still leaves a reader with 1, 2, 3.
+        recipe = published_recipe("Andijviestamppot")
+        step(recipe, 10, "Kook de aardappels gaar.")
+        step(recipe, 20, "Snijd de andijvie.")
+        step(recipe, 30, "Stamp de andijvie erdoor.")
+
+        page = self.client.get("/recepten/andijviestamppot/")
+
+        self.assertContains(
+            page, '<li id="stap-1" value="1">Kook de aardappels gaar.</li>', html=True
+        )
+        self.assertContains(
+            page,
+            '<li id="stap-3" value="3">Stamp de andijvie erdoor.</li>',
+            html=True,
+        )
+        self.assertNotContains(page, 'value="30"')
+
     def test_the_steps_are_read_in_the_order_the_author_gave_them(self):
         # A recept is cooked from top to bottom, so the order is the author's
         # and never the order the rows happened to be typed in.
@@ -86,7 +94,7 @@ class StepRenderingTests(TestCase):
         page = self.client.get("/recepten/andijviestamppot/")
 
         self.assertEqual(
-            texts_in_reading_order(page, "Stamp", "Kook", "Giet"),
+            in_reading_order(page, "Stamp", "Kook", "Giet"),
             ["Kook", "Giet", "Stamp"],
         )
 
@@ -115,7 +123,7 @@ class StepRenderingTests(TestCase):
         page = self.client.get("/recepten/quesadilla-met-zoete-aardappel/")
 
         self.assertEqual(
-            texts_in_reading_order(page, "Vouw de tortilla", "Bak de quesadilla"),
+            in_reading_order(page, "Vouw de tortilla", "Bak de quesadilla"),
             ["Vouw de tortilla", "Bak de quesadilla"],
         )
         self.assertContains(page, "<h3>Bakken</h3>", count=2, html=True)

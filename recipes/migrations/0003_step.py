@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name='Step',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('position', models.PositiveSmallIntegerField(default=0, help_text='Doorlopend over het hele recept. Een nieuwe fase telt gewoon door en begint niet opnieuw bij 1.', verbose_name='volgorde')),
+                ('position', models.PositiveSmallIntegerField(default=0, help_text='Bepaalt de volgorde, niet het nummer: lage nummers staan bovenaan, en de pagina telt de stappen zelf -- doorlopend over de fases heen. Gaten en dubbele nummers ziet een lezer dus niet.', verbose_name='volgorde')),
                 ('phase', models.CharField(blank=True, help_text="De kop waar deze stap onder hoort: 'Mise en place', 'Bouwen'. Stappen die op elkaar volgen en dezelfde fase hebben, komen onder één kop te staan. Leeg laten mag.", max_length=100, verbose_name='fase')),
                 ('text', models.TextField(help_text='Eén handeling, geschreven voor iemand die jouw keuken niet kent.', verbose_name='stap')),
                 ('recipe', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='steps', to='recipes.recipe', verbose_name='recept')),

@@ -9,7 +9,8 @@ test disagrees with the code when the URL changes instead of moving with it.
 
 from django.test import TestCase
 
-from recipes.models import Recipe
+from recipes.models import Recipe, Unit
+from recipes.tests.arranging import ingredient_line, published_recipe, step
 from recipes.tests.authors import sign_in_with_only_the_staff_flag
 
 
@@ -97,11 +98,12 @@ class RecipePageTests(TestCase):
         # Django's `{# #}` only comments out the line it starts on, so a note
         # written across two lines ends up printed to the reader as text.
         # Cheap to do by accident, invisible from the code, and this is the
-        # only place it shows: in the page.
-        Recipe.objects.create(
-            title="Andijviestamppot met oude kaas",
-            status=Recipe.Status.PUBLISHED,
-        )
+        # only place it shows: in the page. The recept is filled in so that
+        # every template the page is made of actually renders.
+        recipe = published_recipe("Andijviestamppot met oude kaas")
+        ingredient_line(recipe, "Andijvie", quantity="500", unit=Unit.GRAM)
+        ingredient_line(recipe, "Zout", is_staple=True, note="naar smaak")
+        step(recipe, 1, "Kook de aardappels gaar.", phase="Mise en place")
 
         response = self.client.get("/recepten/andijviestamppot-met-oude-kaas/")
 

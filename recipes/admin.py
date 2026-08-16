@@ -62,10 +62,6 @@ class StepInline(admin.TabularInline):
     extra = 1
     verbose_name = "stap"
     verbose_name_plural = "stappen"
-    # The order of the rows on the form is the order of the steps, so that
-    # reordering means editing the numbers of the steps that moved rather
-    # than reading the list twice to find out which row is which.
-    ordering = ["position", "pk"]
 
 
 @admin.register(Ingredient)
