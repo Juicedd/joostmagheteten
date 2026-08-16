@@ -1,15 +1,17 @@
 {% extends "base.html" %}
 
 {% comment %}
-  Fases en de hero-foto komen in #6 en #7.
+  De hero-foto komt in #7.
 {% endcomment %}
 
 {% block title %}{{ recipe.title }} — joostmagheteten{% endblock %}
 
 {% block content %}
   {% if not recipe.is_published %}
-    {# Alleen te zien door wie het recept mag inzien voordat het gepubliceerd
-       is -- een bezoeker krijgt hier een 404 en dus nooit deze regel. #}
+    {% comment %}
+      Alleen te zien door wie het recept mag inzien voordat het gepubliceerd
+      is -- een bezoeker krijgt hier een 404 en dus nooit deze regel.
+    {% endcomment %}
     <p>Concept — nog niet gepubliceerd. Alleen jij ziet deze pagina.</p>
   {% endif %}
 
@@ -18,8 +20,12 @@
 
     {% include "recipes/_ingredient_group.html" with heading="Ingrediënten" lines=recipe.shopping_lines %}
 
-    {# Apart en onderaan: dit hoort wel bij het recept, maar niet op het
-       boodschappenlijstje -- het staat al in de keuken. #}
+    {% comment %}
+      Apart en onderaan: dit hoort wel bij het recept, maar niet op het
+      boodschappenlijstje -- het staat al in de keuken.
+    {% endcomment %}
     {% include "recipes/_ingredient_group.html" with heading="Basisingrediënten" lines=recipe.staple_lines %}
+
+    {% include "recipes/_steps.html" %}
   </article>
 {% endblock %}

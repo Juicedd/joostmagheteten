@@ -4,15 +4,18 @@ The recept and what hangs off it.
 Read CONTEXT.md before adding anything here: per ADR-0002 the identifiers are
 English and the interface is Dutch, and the glossary is the only record of
 which is which -- Ingredient is an ingrediënt, RecipeIngredient is an
-ingrediëntregel, and `is_staple` is what makes an ingrediënt a
-basisingrediënt. Step arrives in #6.
+ingrediëntregel, `Step.phase` is a fase, and `is_staple` is what makes an
+ingrediënt a basisingrediënt.
 """
 
+from collections import namedtuple
 from functools import cached_property
+from itertools import groupby
+from operator import attrgetter
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.text import slugify
+from django.utils.text import Truncator, slugify
 
 
 class PermanentSlug(models.Model):
@@ -138,6 +141,38 @@ class Recipe(PermanentSlug):
         return self.ingredient_lines.filter(ingredient__is_staple=True).select_related(
             "ingredient"
         )
+
+    @cached_property
+    def phases(self):
+        """The steps as the page prints them: each fase and what falls under it.
+
+        Grouped on runs of the same fase rather than gathered per name,
+        because a fase is a stretch of the sequence: a recept that returns to
+        the hob after assembling something returns to a second stretch, and
+        the steps in between may not be lifted out of their place to join it.
+
+        A recept with no fases at all comes back as a single unnamed stretch,
+        which the page prints as one plain list.
+        """
+        return [
+            Phase(name, list(steps))
+            for name, steps in groupby(self.numbered_steps, key=attrgetter("phase"))
+        ]
+
+    @cached_property
+    def numbered_steps(self):
+        """Every step of the recept, told where it falls in the whole.
+
+        Counted here, over the recept, and never inside a fase, because that
+        is the difference between "stap 8" meaning one thing and meaning
+        three. Counted rather than read off `position`, so that a number the
+        author skipped or typed twice while reordering cannot reach a reader
+        as a list that runs 1, 2, 4.
+        """
+        steps = list(self.steps.all())
+        for number, step in enumerate(steps, start=1):
+            step.number = number
+        return steps
 
 
 class Ingredient(PermanentSlug):
@@ -362,3 +397,68 @@ class RecipeIngredient(models.Model):
         if self.quantity is None or self.quantity <= 1:
             return False
         return self.quantity == self.quantity.to_integral_value()
+
+
+# One fase and the run of steps standing under it, which is the shape the
+# page loops over. `name` is empty for the steps the author gave no fase.
+Phase = namedtuple("Phase", "name steps")
+
+
+class Step(models.Model):
+    """One instruction in a recept, standing under a fase.
+
+    A recept has one sequence of steps from beginning to end. The fase is a
+    label carried by the step rather than a group the step belongs to,
+    because that is what keeps the numbering out of the grouping's hands: a
+    fase names a stretch of the sequence, it does not start a new one
+    (CONTEXT.md, "Fase").
+    """
+
+    recipe = models.ForeignKey(
+        Recipe,
+        verbose_name="recept",
+        on_delete=models.CASCADE,
+        related_name="steps",
+    )
+    position = models.PositiveSmallIntegerField(
+        "volgorde",
+        default=0,
+        help_text=(
+            "Bepaalt de volgorde, niet het nummer: lage nummers staan "
+            "bovenaan, en de pagina telt de stappen zelf -- doorlopend over "
+            "de fases heen. Gaten en dubbele nummers ziet een lezer dus niet."
+        ),
+    )
+    phase = models.CharField(
+        "fase",
+        max_length=100,
+        blank=True,
+        help_text=(
+            "De kop waar deze stap onder hoort: 'Mise en place', 'Bouwen'. "
+            "Stappen die op elkaar volgen en dezelfde fase hebben, komen "
+            "onder één kop te staan. Leeg laten mag."
+        ),
+    )
+    text = models.TextField(
+        "stap",
+        help_text="Eén handeling, geschreven voor iemand die jouw keuken niet kent.",
+    )
+
+    # Where this step falls in its recept, which is not a field: it is a fact
+    # about the whole sequence, and only Recipe.numbered_steps can count it.
+    # A step that never went through there has no number to print, which is
+    # why the page reaches the steps through Recipe.phases and not otherwise.
+    number = None
+
+    class Meta:
+        verbose_name = "stap"
+        verbose_name_plural = "stappen"
+        # The author's order, and then the order they were written in, so that
+        # two steps sharing a number never swap places between two loads of
+        # the same page -- the same tie-break the ingrediëntregels use.
+        ordering = ["position", "pk"]
+
+    def __str__(self):
+        # A step is a sentence, and the admin shows this in places built for a
+        # label: the object history, a delete confirmation.
+        return Truncator(self.text).chars(70)

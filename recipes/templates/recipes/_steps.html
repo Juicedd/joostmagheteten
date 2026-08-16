@@ -1,0 +1,18 @@
+{% comment %}
+  De stappen van een recept, per fase gegroepeerd. De nummering loopt door
+  over de fases heen, dus krijgt elke stap zijn eigen nummer mee in plaats van
+  dat de lijst zelf telt -- een nieuwe <ol> zou weer bij 1 beginnen.
+{% endcomment %}
+{% if recipe.phases %}
+  <section>
+    <h2>Instructies</h2>
+    {% for phase in recipe.phases %}
+      {% if phase.name %}<h3>{{ phase.name }}</h3>{% endif %}
+      <ol>
+        {% for step in phase.steps %}
+          <li id="stap-{{ step.number }}" value="{{ step.number }}">{{ step.text }}</li>
+        {% endfor %}
+      </ol>
+    {% endfor %}
+  </section>
+{% endif %}

@@ -35,7 +35,7 @@ The yield a recept's quantities are stated for. Every ingrediëntregel is implic
 _Avoid_: persoon, serving
 
 **Fase**:
-A named group of consecutive steps within a recept's instructions — mise en place, the cooking itself, assembly. Fases group the steps but do not restart their numbering: a recept has one continuous sequence of steps, divided into fases.
+A named group of consecutive steps within a recept's instructions — mise en place, the cooking itself, assembly. Fases group the steps but do not restart their numbering: a recept has one continuous sequence of steps, divided into fases. A recept that returns to an earlier fase gets a second stretch under that name rather than having its later steps lifted out of place to join the first. In code: the steps are `Step` rows on the recept, and the name of the fase is `Step.phase`, a label each step carries — grouping is then something the page does with them, and never something the numbering has to know about. The fase itself, name and steps together, exists only where the page is being written: `Recipe.phases` builds it and `Phase` is its shape. What a reader sees numbered is not `Step.position` either; that orders the steps, and the page counts them.
 _Avoid_: sectie, deel, stage
 
 **Kookmodus**:

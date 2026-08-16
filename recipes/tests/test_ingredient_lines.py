@@ -6,42 +6,10 @@ through the ORM -- the same way authors.py creates the account it signs in
 with -- and every assertion is made on what the page actually says.
 """
 
-from decimal import Decimal
-
 from django.test import TestCase
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Unit
-
-
-def published_recipe(title):
-    return Recipe.objects.create(title=title, status=Recipe.Status.PUBLISHED)
-
-
-def ingredient_line(
-    recipe, name, quantity=None, unit="", note="", is_staple=False, position=0
-):
-    """One ingrediëntregel, creating the ingrediënt it uses if it is new.
-
-    No unit unless one is asked for, because a unit without a quantity is
-    the one combination an ingrediëntregel refuses -- "stuk Goudse kaas".
-    """
-    ingredient, _ = Ingredient.objects.get_or_create(
-        name=name, defaults={"is_staple": is_staple}
-    )
-    return RecipeIngredient.objects.create(
-        recipe=recipe,
-        ingredient=ingredient,
-        quantity=None if quantity is None else Decimal(quantity),
-        unit=unit,
-        note=note,
-        position=position,
-    )
-
-
-def names_in_reading_order(page, *names):
-    """The given names, sorted by where they appear on the rendered page."""
-    html = page.content.decode()
-    return sorted(names, key=html.index)
+from recipes.models import Unit
+from recipes.tests.arranging import in_reading_order, ingredient_line, published_recipe
 
 
 class IngredientLineRenderingTests(TestCase):
@@ -72,7 +40,7 @@ class IngredientLineRenderingTests(TestCase):
         page = self.client.get("/recepten/quesadilla-met-zoete-aardappel/")
 
         self.assertEqual(
-            names_in_reading_order(page, "Tortilla", "Zoete aardappel", "Goudse kaas"),
+            in_reading_order(page, "Tortilla", "Zoete aardappel", "Goudse kaas"),
             ["Tortilla", "Zoete aardappel", "Goudse kaas"],
         )
 
@@ -91,9 +59,7 @@ class IngredientLineRenderingTests(TestCase):
         self.assertContains(page, "<h2>Ingrediënten</h2>", html=True)
         self.assertContains(page, "<h2>Basisingrediënten</h2>", html=True)
         self.assertEqual(
-            names_in_reading_order(
-                page, "Zwarte bonen", "Basisingrediënten", "Komijnpoeder"
-            ),
+            in_reading_order(page, "Zwarte bonen", "Basisingrediënten", "Komijnpoeder"),
             ["Zwarte bonen", "Basisingrediënten", "Komijnpoeder"],
         )
 

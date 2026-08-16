@@ -10,13 +10,15 @@ inline formsets.
 
 from django.test import TestCase
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Unit
+from recipes.models import Ingredient, Recipe, RecipeIngredient, Step, Unit
 from recipes.tests.admin_forms import (
     ADD_RECIPE,
     LINES,
+    STEPS,
     change_recipe,
     ingredient_line_fields,
     recipe_form,
+    step_fields,
 )
 from recipes.tests.authors import sign_in_as_the_author
 
@@ -246,6 +248,143 @@ class IngredientLineAuthoringTests(TestCase):
         self.client.logout()
         html = self.client.get(QUESADILLA_URL).content.decode()
         self.assertLess(html.index("Tortilla"), html.index("Zwarte bonen"))
+
+
+class StepAuthoringTests(TestCase):
+    """Writing the steps of a recept, inline on the recept form."""
+
+    def setUp(self):
+        sign_in_as_the_author(self.client)
+
+    def write_quesadilla_with(self, *steps):
+        return self.client.post(
+            ADD_RECIPE,
+            recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, steps=steps),
+        )
+
+    def test_the_recept_form_offers_a_stap_to_write(self):
+        # The steps are written where the recept is written, in the author's
+        # own language (ADR-0002), and not on a page of their own.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "Stappen")
+        self.assertContains(response, f'name="{STEPS}-0-text"')
+
+    def test_the_author_writes_the_steps_inside_the_recept(self):
+        response = self.write_quesadilla_with(
+            step_fields("Snijd de zoete aardappel in blokjes.", position=1),
+            step_fields("Verhit een pan.", position=2),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "Snijd de zoete aardappel in blokjes.")
+        self.assertContains(page, "Verhit een pan.")
+
+    def test_the_author_says_which_fase_a_step_belongs_to(self):
+        self.write_quesadilla_with(
+            step_fields(
+                "Snijd de zoete aardappel in blokjes.",
+                position=1,
+                phase="Mise en place",
+            ),
+            step_fields("Verhit een pan.", position=2, phase="Bakken"),
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "<h3>Mise en place</h3>", html=True)
+        self.assertContains(page, "<h3>Bakken</h3>", html=True)
+
+    def test_the_steps_are_there_when_the_recept_is_opened_again(self):
+        self.write_quesadilla_with(
+            step_fields("Verhit een pan.", position=1, phase="Bakken")
+        )
+
+        form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
+
+        self.assertEqual(form.status_code, 200)
+        self.assertContains(form, "Verhit een pan.")
+        self.assertContains(form, "Bakken")
+
+    def test_the_author_decides_what_order_the_steps_are_read_in(self):
+        # A step remembered afterwards is given its number and drops into
+        # place, rather than having to be retyped in the middle of the list.
+        self.write_quesadilla_with(
+            step_fields("Verhit een pan.", position=2),
+            step_fields("Snijd de zoete aardappel in blokjes.", position=1),
+        )
+
+        self.client.logout()
+        html = self.client.get(QUESADILLA_URL).content.decode()
+        self.assertLess(html.index("Snijd de zoete"), html.index("Verhit een pan"))
+
+    def test_a_step_that_moves_to_another_number_is_renumbered_on_the_page(self):
+        # The page counts the steps itself, so reordering two of them leaves
+        # a reader with 1, 2 and never with 2, 2.
+        self.write_quesadilla_with(
+            step_fields("Verhit een pan.", position=1),
+            step_fields("Snijd de zoete aardappel in blokjes.", position=2),
+        )
+        written = {step.text: step.pk for step in Step.objects.all()}
+
+        self.client.post(
+            change_recipe("quesadilla-met-zoete-aardappel"),
+            recipe_form(
+                QUESADILLA,
+                slug="quesadilla-met-zoete-aardappel",
+                status=Recipe.Status.PUBLISHED,
+                steps=[
+                    step_fields(
+                        "Verhit een pan.",
+                        position=2,
+                        pk=written["Verhit een pan."],
+                    ),
+                    step_fields(
+                        "Snijd de zoete aardappel in blokjes.",
+                        position=1,
+                        pk=written["Snijd de zoete aardappel in blokjes."],
+                    ),
+                ],
+            ),
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(
+            page,
+            '<li id="stap-1" value="1">Snijd de zoete aardappel in blokjes.</li>',
+            html=True,
+        )
+        self.assertContains(
+            page, '<li id="stap-2" value="2">Verhit een pan.</li>', html=True
+        )
+
+    def test_the_author_takes_a_step_back_off_a_recept(self):
+        self.write_quesadilla_with(step_fields("Verhit een pan.", position=1))
+        # Arranging: the formset addresses a saved row by its key, the same
+        # way the ingrediëntregel tests above do.
+        written = Step.objects.get()
+
+        self.client.post(
+            change_recipe("quesadilla-met-zoete-aardappel"),
+            recipe_form(
+                QUESADILLA,
+                slug="quesadilla-met-zoete-aardappel",
+                status=Recipe.Status.PUBLISHED,
+                steps=[
+                    step_fields(
+                        "Verhit een pan.", position=1, pk=written.pk, delete=True
+                    )
+                ],
+            ),
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, "Verhit een pan.")
 
 
 class IngredientAuthoringTests(TestCase):
