@@ -1,0 +1,5 @@
+{% comment %}
+  Eén ingrediëntregel. Staat apart omdat de boodschappen en de
+  basisingrediënten hem allebei op dezelfde manier tonen.
+{% endcomment %}
+<li>{% if line.amount %}{{ line.amount }} {% endif %}{{ line.ingredient.name }}{% if line.note %} <em>({{ line.note }})</em>{% endif %}</li>

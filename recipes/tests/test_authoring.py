@@ -10,30 +10,14 @@ inline formsets.
 
 from django.test import TestCase
 
-from recipes.models import Recipe
+from recipes.models import Ingredient, Recipe, RecipeIngredient, Unit
+from recipes.tests.admin_forms import (
+    ADD_RECIPE,
+    change_recipe,
+    ingredient_line_fields,
+    recipe_form,
+)
 from recipes.tests.authors import sign_in_as_the_author
-
-ADD_RECIPE = "/admin/recipes/recipe/add/"
-
-
-def recipe_form(title, slug="", status=Recipe.Status.DRAFT):
-    """The fields the admin's recept form posts.
-
-    An empty slug is what the browser sends when the author has not touched
-    the field and the prepopulate script has not run -- which is the case
-    worth covering, because it is the one where the server has to fill it in.
-    """
-    return {"title": title, "slug": slug, "status": status}
-
-
-def change_recipe(slug):
-    """The admin URL for editing the recept with this slug.
-
-    Arranging, not asserting: the admin addresses its pages by primary key,
-    so reaching one needs the key, the same way these tests need a user row
-    to sign in with.
-    """
-    return f"/admin/recipes/recipe/{Recipe.objects.get(slug=slug).pk}/change/"
 
 
 class AuthoringTests(TestCase):
@@ -119,3 +103,161 @@ class AuthoringTests(TestCase):
         self.assertEqual(response.status_code, 200)
         page = self.client.get("/recepten/souffle-van-oude-goudse-kaas/")
         self.assertContains(page, "Soufflé van oude Goudse kaas")
+
+
+QUESADILLA = "Quesadilla met zoete aardappel"
+QUESADILLA_URL = "/recepten/quesadilla-met-zoete-aardappel/"
+
+
+class IngredientLineAuthoringTests(TestCase):
+    """Writing ingrediëntregels into a recept, inline on the recept form."""
+
+    def setUp(self):
+        sign_in_as_the_author(self.client)
+        self.beans = Ingredient.objects.create(name="Zwarte bonen")
+
+    def write_quesadilla_with(self, *lines):
+        return self.client.post(
+            ADD_RECIPE,
+            recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, lines=lines),
+        )
+
+    def test_the_author_writes_ingredientregels_inside_the_recept(self):
+        response = self.write_quesadilla_with(
+            ingredient_line_fields(
+                self.beans.pk, quantity="2", unit=Unit.CAN, note="van 400gr"
+            )
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "2 blikken")
+        self.assertContains(page, "Zwarte bonen")
+        self.assertContains(page, "van 400gr")
+
+    def test_the_ingredient_is_picked_from_the_ingredienten_there_already_are(self):
+        # A text box here would let a second, near-empty "Ui" be typed next to
+        # the real one, splitting everything that hangs off it -- and nobody
+        # would notice until the ingrediëntpagina's showed up half empty.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, '<select name="ingredient_lines-0-ingredient"')
+
+    def test_the_regels_are_still_there_when_the_recept_is_opened_again(self):
+        self.write_quesadilla_with(
+            ingredient_line_fields(
+                self.beans.pk, quantity="2", unit=Unit.CAN, note="van 400gr"
+            )
+        )
+
+        form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
+
+        self.assertEqual(form.status_code, 200)
+        self.assertContains(form, "Zwarte bonen")
+        self.assertContains(form, "van 400gr")
+
+    def test_a_typed_ingredient_name_is_refused(self):
+        response = self.write_quesadilla_with(
+            ingredient_line_fields("Zwarte bonen", quantity="2", unit=Unit.CAN)
+        )
+
+        # The form comes back instead of redirecting, and nothing was written.
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
+
+    def test_a_typed_unit_is_refused(self):
+        # "blikken" beside "blik", "Stuks" beside "stuks": the vault this site
+        # is written from has both, because it let the unit be typed.
+        response = self.write_quesadilla_with(
+            ingredient_line_fields(self.beans.pk, quantity="2", unit="blikken")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
+
+    def test_an_ingredient_that_does_not_exist_yet_can_be_added_from_here(self):
+        # Halfway through writing a recept is exactly when you meet an
+        # ingrediënt the site has never seen. Leaving the page to add it would
+        # mean losing what has been typed so far.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "/admin/recipes/ingredient/add/")
+
+    def test_the_author_takes_an_ingredientregel_back_off_a_recept(self):
+        self.write_quesadilla_with(
+            ingredient_line_fields(self.beans.pk, quantity="2", unit=Unit.CAN)
+        )
+        written = RecipeIngredient.objects.get()
+
+        self.client.post(
+            change_recipe("quesadilla-met-zoete-aardappel"),
+            recipe_form(
+                QUESADILLA,
+                slug="quesadilla-met-zoete-aardappel",
+                status=Recipe.Status.PUBLISHED,
+                lines=[
+                    ingredient_line_fields(
+                        self.beans.pk,
+                        quantity="2",
+                        unit=Unit.CAN,
+                        id=written.pk,
+                        delete=True,
+                    )
+                ],
+            ),
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, "Zwarte bonen")
+
+    def test_the_author_decides_what_order_the_regels_are_read_in(self):
+        # The numbers decide, not the order the rows were filled in, so that
+        # an ingrediënt remembered last does not have to be retyped to sit in
+        # the middle of the list.
+        self.write_quesadilla_with(
+            ingredient_line_fields(
+                self.beans.pk, quantity="2", unit=Unit.CAN, position=2
+            ),
+            ingredient_line_fields(
+                Ingredient.objects.create(name="Tortilla").pk,
+                quantity="12",
+                unit=Unit.PIECE,
+                position=1,
+            ),
+        )
+
+        self.client.logout()
+        html = self.client.get(QUESADILLA_URL).content.decode()
+        self.assertLess(html.index("Tortilla"), html.index("Zwarte bonen"))
+
+
+class IngredientAuthoringTests(TestCase):
+    """Writing the ingrediënten themselves, which the regels point at."""
+
+    def setUp(self):
+        sign_in_as_the_author(self.client)
+
+    def test_an_ingredient_name_cannot_be_used_twice(self):
+        # One row per foodstuff is the whole point: a second "Zwarte bonen"
+        # would split every regel, ingrediëntpagina and boodschappenlijst
+        # that ever gathers them, and nobody would see it happen.
+        Ingredient.objects.create(name="Zwarte bonen")
+
+        response = self.client.post(
+            "/admin/recipes/ingredient/add/",
+            {"name": "Zwarte bonen", "slug": "", "is_staple": False},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Ingredient.objects.filter(name="Zwarte bonen").count(), 1)
+
+    def test_the_form_says_how_specific_a_name_has_to_be(self):
+        # ADR-0007 is a decision about the data, and the moment it is applied
+        # is the moment a name is typed -- so it is on the form, not only in
+        # a document nobody has open while writing a recept.
+        response = self.client.get("/admin/recipes/ingredient/add/")
+
+        self.assertContains(response, "Rode paprika")
