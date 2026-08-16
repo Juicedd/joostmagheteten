@@ -15,15 +15,15 @@ A private note in Joost's Obsidian vault. A notitie is raw material that a recep
 _Avoid_: draft, concept, bron
 
 **Ingrediënt**:
-A foodstuff as a thing in the world, independent of any recept — andijvie, goudse kaas, komijnpoeder. An ingrediënt carries its own Dutch-specific knowledge: season, storage, price bracket, flavour profile, what it pairs with.
-_Avoid_: product, item
+A foodstuff as a thing in the world, independent of any recept — andijvie, goudse kaas, komijnpoeder. An ingrediënt carries its own Dutch-specific knowledge: season, storage, price bracket, flavour profile, what it pairs with. It is named at the level you buy it in a Dutch supermarket — rode paprika rather than paprika; verse peterselie and gedroogde peterselie rather than one peterselie. Where that level is unclear, name it more finely: too specific can be merged later, too broad cannot be split without recovering what nobody wrote down (ADR-0007). Basisingrediënten are the exception — see below.
+_Avoid_: product, item (you buy an ingrediënt as a product, but never call it one)
 
 **Ingrediëntregel**:
 The use of one ingrediënt inside one recept, together with how much of it and any remark about it — "2 blikken zwarte bonen (van 400gr)". The quantity lives here, never on the ingrediënt.
 _Avoid_: ingrediënt (an ingrediëntregel is a *use* of one, not one), regel
 
 **Basisingrediënt**:
-An ingrediënt assumed to be in the kitchen already — zout, peper, zonnebloemolie, standard dried spices. Still recorded on the recept in full, but presented apart from the shopping-relevant ingrediënten so a reader knows what they actually need to buy.
+An ingrediënt assumed to be in the kitchen already — zout, peper, zonnebloemolie, standard dried spices. Still recorded on the recept in full, but presented apart from the shopping-relevant ingrediënten so a reader knows what they actually need to buy. The supermarket-level naming rule above does not reach a basisingrediënt: it is named as you would say it in a step — zout, not grof zeezout — because that rule exists to make a shopping list honest, and a basisingrediënt is the thing you never shop for. This merges variants of one staple, never two different ones: olijfolie and zonnebloemolie stay apart, as do komijnpoeder and komijnzaad.
 _Avoid_: pantry staple, kruiden, staple
 
 **Bron**:
