@@ -6,8 +6,9 @@ the authenticated-client shape that later tickets copy for previewing a concept
 recept and for driving the whole authoring flow.
 """
 
-from django.contrib.auth import get_user_model
 from django.test import TestCase
+
+from recipes.tests.authors import sign_in_as_the_author
 
 
 class AdminAccessTests(TestCase):
@@ -18,12 +19,7 @@ class AdminAccessTests(TestCase):
         self.assertIn("/admin/login/", response.headers["Location"])
 
     def test_admin_renders_for_a_superuser(self):
-        superuser = get_user_model().objects.create_superuser(
-            username="joost",
-            email="joost@example.com",
-            password="een-weggooiwachtwoord",
-        )
-        self.client.force_login(superuser)
+        sign_in_as_the_author(self.client)
 
         response = self.client.get("/admin/")
 
@@ -33,3 +29,13 @@ class AdminAccessTests(TestCase):
         # wording can change between releases while the page is still
         # perfectly correct, and a test that breaks then is a bad test.
         self.assertContains(response, 'lang="nl"')
+
+    def test_the_admin_calls_them_recepten(self):
+        # Our own word rather than one of Django's translations, so this is
+        # safe to assert on: per ADR-0002 the interface Joost reads is Dutch,
+        # and the admin is the interface he spends the most time in.
+        sign_in_as_the_author(self.client)
+
+        response = self.client.get("/admin/")
+
+        self.assertContains(response, "Recepten")
