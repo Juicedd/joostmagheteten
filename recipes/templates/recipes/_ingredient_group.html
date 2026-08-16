@@ -1,0 +1,15 @@
+{% comment %}
+  Eén groep ingrediëntregels onder een kop. De boodschappen en de
+  basisingrediënten zijn dezelfde lijst met een andere kop, dus staan ze
+  hier één keer beschreven. Een lege groep krijgt geen kop.
+{% endcomment %}
+{% if lines %}
+  <section>
+    <h2>{{ heading }}</h2>
+    <ul>
+      {% for line in lines %}
+        <li>{% if line.amount %}{{ line.amount }} {% endif %}{{ line.ingredient.name }}{% if line.note %} <em>({{ line.note }})</em>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}

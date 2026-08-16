@@ -147,3 +147,4 @@ wake — which is why it stays free only until there are visitors to feel it
 - [ADR-0004](docs/adr/0004-no-ads-no-cookies-no-consent-banner.md) — no ads, no cookies, no consent banner
 - [ADR-0005](docs/adr/0005-postgres-locally-too.md) — Postgres on a laptop too, not SQLite
 - [ADR-0006](docs/adr/0006-slugs-fold-diacritics-and-never-move.md) — slugs fold diacritics to ASCII, and never move afterwards
+- [ADR-0007](docs/adr/0007-an-ingredient-is-named-as-you-buy-it.md) — an ingrediënt is named at the level you buy it, and finer when in doubt

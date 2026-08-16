@@ -30,6 +30,15 @@ class AdminAccessTests(TestCase):
         # perfectly correct, and a test that breaks then is a bad test.
         self.assertContains(response, 'lang="nl"')
 
+    def test_the_admin_calls_them_ingredienten(self):
+        # Same reason as the recepten below, and the same word CONTEXT.md
+        # pins: an ingrediënt, never a product or an item.
+        sign_in_as_the_author(self.client)
+
+        response = self.client.get("/admin/")
+
+        self.assertContains(response, "Ingrediënten")
+
     def test_the_admin_calls_them_recepten(self):
         # Our own word rather than one of Django's translations, so this is
         # safe to assert on: per ADR-0002 the interface Joost reads is Dutch,

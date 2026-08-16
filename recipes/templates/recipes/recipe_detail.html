@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% comment %}
-  Ingrediëntregels, fases en de hero-foto komen in #5, #6 en #7.
+  Fases en de hero-foto komen in #6 en #7.
 {% endcomment %}
 
 {% block title %}{{ recipe.title }} — joostmagheteten{% endblock %}
@@ -15,5 +15,11 @@
 
   <article>
     <h1>{{ recipe.title }}</h1>
+
+    {% include "recipes/_ingredient_group.html" with heading="Ingrediënten" lines=recipe.shopping_lines %}
+
+    {# Apart en onderaan: dit hoort wel bij het recept, maar niet op het
+       boodschappenlijstje -- het staat al in de keuken. #}
+    {% include "recipes/_ingredient_group.html" with heading="Basisingrediënten" lines=recipe.staple_lines %}
   </article>
 {% endblock %}
