@@ -146,3 +146,4 @@ wake — which is why it stays free only until there are visitors to feel it
 - [ADR-0003](docs/adr/0003-paid-render-with-photos-on-cloudflare-r2.md) — paid Render, photos on Cloudflare R2
 - [ADR-0004](docs/adr/0004-no-ads-no-cookies-no-consent-banner.md) — no ads, no cookies, no consent banner
 - [ADR-0005](docs/adr/0005-postgres-locally-too.md) — Postgres on a laptop too, not SQLite
+- [ADR-0006](docs/adr/0006-slugs-fold-diacritics-and-never-move.md) — slugs fold diacritics to ASCII, and never move afterwards

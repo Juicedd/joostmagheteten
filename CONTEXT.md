@@ -42,6 +42,18 @@ _Avoid_: sectie, deel, stage
 The way a recept is presented to someone actually cooking it, as opposed to someone browsing or deciding. Kookmodus assumes a phone on a counter, at arm's length, with occupied hands — everything it does follows from that.
 _Avoid_: kitchen mode, kookweergave
 
+## Publicatie
+
+Every recept is in exactly one of two states, and the boundary between them is the one the site cannot afford to get wrong.
+
+**Concept**:
+A recept Joost is still writing. It is in the database, editable and previewable by him, and invisible to everyone else — a visitor asking for one is told it does not exist rather than that they may not see it. Every recept starts as a concept. In code: `Recipe.status` is `draft` (ADR-0002).
+_Avoid_: klad, notitie (a notitie is the private note in Obsidian and never becomes a concept — see above), draft in anything a reader sees
+
+**Gepubliceerd**:
+The single status that makes a recept public, reached by an explicit act rather than by finishing the text. It is an allowlist of exactly one: anything that is not gepubliceerd is invisible, including any status added later. In code: `Recipe.status` is `published`.
+_Avoid_: live, online, af
+
 ## Classificatie en oordeel
 
 Two kinds of metadata hang off a recept, and the difference between them decides what the public ever sees.
