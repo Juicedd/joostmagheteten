@@ -10,7 +10,7 @@ test disagrees with the code when the URL changes instead of moving with it.
 from django.test import TestCase
 
 from recipes.models import Recipe
-from recipes.tests.authors import sign_in_as_staff
+from recipes.tests.authors import sign_in_with_only_the_staff_flag
 
 
 class RecipePageTests(TestCase):
@@ -51,6 +51,20 @@ class RecipePageTests(TestCase):
             response, "Quesadilla met zoete aardappel", status_code=404
         )
 
+    def test_the_page_a_visitor_gets_instead_is_in_dutch(self):
+        # This 404 is the most-seen visitor-facing response the recept page
+        # has, and Django's built-in one is in English no matter what
+        # LANGUAGE_CODE says.
+        Recipe.objects.create(
+            title="Quesadilla met zoete aardappel",
+            status=Recipe.Status.DRAFT,
+        )
+
+        response = self.client.get("/recepten/quesadilla-met-zoete-aardappel/")
+
+        self.assertContains(response, "Deze pagina bestaat niet", status_code=404)
+        self.assertContains(response, 'lang="nl"', status_code=404)
+
     def test_a_concept_recept_renders_for_the_signed_in_author(self):
         # Writing a recept over several evenings means reading it back the
         # way a visitor eventually will, before it is public.
@@ -58,7 +72,7 @@ class RecipePageTests(TestCase):
             title="Quesadilla met zoete aardappel",
             status=Recipe.Status.DRAFT,
         )
-        sign_in_as_staff(self.client)
+        sign_in_with_only_the_staff_flag(self.client)
 
         response = self.client.get("/recepten/quesadilla-met-zoete-aardappel/")
 
@@ -73,7 +87,7 @@ class RecipePageTests(TestCase):
             title="Quesadilla met zoete aardappel",
             status=Recipe.Status.DRAFT,
         )
-        sign_in_as_staff(self.client)
+        sign_in_with_only_the_staff_flag(self.client)
 
         response = self.client.get("/recepten/quesadilla-met-zoete-aardappel/")
 
@@ -86,7 +100,7 @@ class RecipePageTests(TestCase):
             title="Andijviestamppot met oude kaas",
             status=Recipe.Status.PUBLISHED,
         )
-        sign_in_as_staff(self.client)
+        sign_in_with_only_the_staff_flag(self.client)
 
         response = self.client.get("/recepten/andijviestamppot-met-oude-kaas/")
 

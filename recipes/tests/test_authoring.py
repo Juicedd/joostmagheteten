@@ -16,12 +16,22 @@ from recipes.tests.authors import sign_in_as_the_author
 ADD_RECIPE = "/admin/recipes/recipe/add/"
 
 
+def recipe_form(title, slug="", status=Recipe.Status.DRAFT):
+    """The fields the admin's recept form posts.
+
+    An empty slug is what the browser sends when the author has not touched
+    the field and the prepopulate script has not run -- which is the case
+    worth covering, because it is the one where the server has to fill it in.
+    """
+    return {"title": title, "slug": slug, "status": status}
+
+
 def change_recipe(slug):
     """The admin URL for editing the recept with this slug.
 
-    Reading the row back to build the URL is plumbing, not an assertion --
-    the admin numbers its pages by primary key and there is no other way to
-    address one.
+    Arranging, not asserting: the admin addresses its pages by primary key,
+    so reaching one needs the key, the same way these tests need a user row
+    to sign in with.
     """
     return f"/admin/recipes/recipe/{Recipe.objects.get(slug=slug).pk}/change/"
 
@@ -39,12 +49,7 @@ class AuthoringTests(TestCase):
 
     def test_the_author_can_write_a_recept_in_the_admin(self):
         response = self.client.post(
-            ADD_RECIPE,
-            {
-                "title": "Andijviestamppot met oude kaas",
-                "slug": "",
-                "status": Recipe.Status.DRAFT,
-            },
+            ADD_RECIPE, recipe_form("Andijviestamppot met oude kaas")
         )
 
         self.assertEqual(response.status_code, 302)
@@ -53,14 +58,7 @@ class AuthoringTests(TestCase):
         self.assertContains(page, "Andijviestamppot met oude kaas")
 
     def test_a_recept_written_in_the_admin_is_not_public_yet(self):
-        self.client.post(
-            ADD_RECIPE,
-            {
-                "title": "Andijviestamppot met oude kaas",
-                "slug": "",
-                "status": Recipe.Status.DRAFT,
-            },
-        )
+        self.client.post(ADD_RECIPE, recipe_form("Andijviestamppot met oude kaas"))
         self.client.logout()
 
         page = self.client.get("/recepten/andijviestamppot-met-oude-kaas/")
@@ -69,22 +67,15 @@ class AuthoringTests(TestCase):
 
     def test_publishing_a_recept_in_the_admin_makes_it_public(self):
         # Going live is a decision, not a side effect of finishing the text.
-        self.client.post(
-            ADD_RECIPE,
-            {
-                "title": "Andijviestamppot met oude kaas",
-                "slug": "andijviestamppot-met-oude-kaas",
-                "status": Recipe.Status.DRAFT,
-            },
-        )
+        self.client.post(ADD_RECIPE, recipe_form("Andijviestamppot met oude kaas"))
 
         response = self.client.post(
             change_recipe("andijviestamppot-met-oude-kaas"),
-            {
-                "title": "Andijviestamppot met oude kaas",
-                "slug": "andijviestamppot-met-oude-kaas",
-                "status": Recipe.Status.PUBLISHED,
-            },
+            recipe_form(
+                "Andijviestamppot met oude kaas",
+                slug="andijviestamppot-met-oude-kaas",
+                status=Recipe.Status.PUBLISHED,
+            ),
         )
 
         self.assertEqual(response.status_code, 302)
@@ -98,20 +89,16 @@ class AuthoringTests(TestCase):
         # afterwards must not turn that link into a 404 (ADR-0006).
         self.client.post(
             ADD_RECIPE,
-            {
-                "title": "Andijviestamppot",
-                "slug": "andijviestamppot",
-                "status": Recipe.Status.PUBLISHED,
-            },
+            recipe_form("Andijviestamppot", status=Recipe.Status.PUBLISHED),
         )
 
         self.client.post(
             change_recipe("andijviestamppot"),
-            {
-                "title": "Andijviestamppot met oude kaas",
-                "slug": "andijviestamppot",
-                "status": Recipe.Status.PUBLISHED,
-            },
+            recipe_form(
+                "Andijviestamppot met oude kaas",
+                slug="andijviestamppot",
+                status=Recipe.Status.PUBLISHED,
+            ),
         )
 
         self.client.logout()
@@ -119,7 +106,16 @@ class AuthoringTests(TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Andijviestamppot met oude kaas")
 
-    def test_the_admin_calls_them_recepten(self):
-        response = self.client.get("/admin/")
+    def test_a_second_recept_cannot_take_a_url_that_is_taken(self):
+        # Folding diacritics is lossy, so two titles can land on the same
+        # URL. The author gets the form back to fix it, rather than a 500 --
+        # and the recept that already owns the URL is left alone (ADR-0006).
+        self.client.post(ADD_RECIPE, recipe_form("Soufflé van oude Goudse kaas"))
 
-        self.assertContains(response, "Recepten")
+        response = self.client.post(
+            ADD_RECIPE, recipe_form("Souffle van oude Goudse kaas")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        page = self.client.get("/recepten/souffle-van-oude-goudse-kaas/")
+        self.assertContains(page, "Soufflé van oude Goudse kaas")

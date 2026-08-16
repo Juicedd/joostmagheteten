@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% comment %}
+  Django's ingebouwde 404-pagina is Engels, wat LANGUAGE_CODE niet verandert.
+  Dit is ook de pagina die een bezoeker krijgt bij een recept dat nog concept
+  is, dus hij zegt niet meer dan dat er niets is.
+{% endcomment %}
+
+{% block title %}Deze pagina bestaat niet — joostmagheteten{% endblock %}
+
+{% block content %}
+  <h1>Deze pagina bestaat niet</h1>
+  <p>Misschien staat er een typefout in het adres, of stond hier nooit iets.</p>
+  <p><a href="/">Terug naar de voorpagina</a></p>
+{% endblock %}

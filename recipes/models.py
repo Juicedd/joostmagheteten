@@ -73,10 +73,25 @@ class Recipe(models.Model):
     def is_published(self):
         return self.status == self.Status.PUBLISHED
 
+    def clean(self):
+        # Before uniqueness is validated rather than after, so that two
+        # titles folding onto one slug is a Dutch error on the form the
+        # author is looking at, and not an IntegrityError from save().
+        super().clean()
+        self.derive_slug()
+
     def save(self, *args, **kwargs):
-        # Only when there is nothing there yet. Re-deriving the slug from an
-        # edited title would silently change the URL of a recept that has
-        # already been shared, and ADR-0006 is about not doing that.
+        # Again, because writes that do not come from a form -- the tests,
+        # an importer later -- never go through clean().
+        self.derive_slug()
+        super().save(*args, **kwargs)
+
+    def derive_slug(self):
+        """Fill the slug in from the title, but only while there is none.
+
+        Re-deriving it from an edited title would silently change the URL of
+        a recept that has already been shared, and ADR-0006 is about not
+        doing that.
+        """
         if not self.slug:
             self.slug = slugify(self.title)
-        super().save(*args, **kwargs)
