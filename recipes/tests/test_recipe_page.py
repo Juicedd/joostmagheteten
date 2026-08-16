@@ -93,6 +93,21 @@ class RecipePageTests(TestCase):
 
         self.assertContains(response, "Concept")
 
+    def test_no_note_meant_for_the_next_author_reaches_the_page(self):
+        # Django's `{# #}` only comments out the line it starts on, so a note
+        # written across two lines ends up printed to the reader as text.
+        # Cheap to do by accident, invisible from the code, and this is the
+        # only place it shows: in the page.
+        Recipe.objects.create(
+            title="Andijviestamppot met oude kaas",
+            status=Recipe.Status.PUBLISHED,
+        )
+
+        response = self.client.get("/recepten/andijviestamppot-met-oude-kaas/")
+
+        self.assertNotContains(response, "{#")
+        self.assertNotContains(response, "{%")
+
     def test_a_published_recept_is_never_marked_as_a_concept(self):
         # Signed in as the one person who sees both kinds: the marker has to
         # follow the recept's status and not who is looking at it.

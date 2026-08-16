@@ -4,7 +4,7 @@
 from django.contrib import admin
 from django.contrib.admin.widgets import AutocompleteSelect
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient
+from recipes.models import Ingredient, Recipe, RecipeIngredient, Step
 
 
 class IngredientAutocomplete(AutocompleteSelect):
@@ -49,6 +49,25 @@ class RecipeIngredientInline(admin.TabularInline):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
+class StepInline(admin.TabularInline):
+    """The steps, edited inside the recept they belong to.
+
+    Inline for the same reason the ingrediëntregels are, and stacked in a
+    table so the fase of every step is in one column: a fase is a run of
+    steps, so what the author needs to see while typing is where the name in
+    that column stops repeating.
+    """
+
+    model = Step
+    extra = 1
+    verbose_name = "stap"
+    verbose_name_plural = "stappen"
+    # The order of the rows on the form is the order of the steps, so that
+    # reordering means editing the numbers of the steps that moved rather
+    # than reading the list twice to find out which row is which.
+    ordering = ["position", "pk"]
+
+
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
     list_display = ("name", "is_staple")
@@ -63,7 +82,9 @@ class RecipeAdmin(admin.ModelAdmin):
     list_display = ("title", "status")
     list_filter = ("status",)
     search_fields = ("title",)
-    inlines = [RecipeIngredientInline]
+    # In the order a recept is written: what goes in it, and then what to do
+    # with it.
+    inlines = [RecipeIngredientInline, StepInline]
     # Fills the slug in while the title is typed, so the URL is visible and
     # editable before it is committed to. Django's own script only binds this
     # while the field is empty, so editing the title of a recept that already
