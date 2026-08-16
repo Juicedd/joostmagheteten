@@ -7,7 +7,7 @@ from django.contrib.admin.widgets import AutocompleteSelect
 from recipes.models import Ingredient, Recipe, RecipeIngredient
 
 
-class IngredientChoices(AutocompleteSelect):
+class IngredientAutocomplete(AutocompleteSelect):
     """The ingrediënt dropdown, which survives being handed a name.
 
     Django's autocomplete widget looks the selected value up in the database
@@ -18,6 +18,7 @@ class IngredientChoices(AutocompleteSelect):
     """
 
     def optgroups(self, name, value, attr=None):
+        # A key is a number; a name never is.
         keys = [one for one in value if str(one).isdigit()]
         return super().optgroups(name, keys, attr)
 
@@ -44,7 +45,7 @@ class RecipeIngredientInline(admin.TabularInline):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "ingredient":
-            kwargs["widget"] = IngredientChoices(db_field, self.admin_site)
+            kwargs["widget"] = IngredientAutocomplete(db_field, self.admin_site)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 

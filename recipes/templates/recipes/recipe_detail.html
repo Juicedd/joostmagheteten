@@ -16,28 +16,10 @@
   <article>
     <h1>{{ recipe.title }}</h1>
 
-    {% if recipe.shopping_lines %}
-      <section>
-        <h2>Ingrediënten</h2>
-        <ul>
-          {% for line in recipe.shopping_lines %}
-            {% include "recipes/_ingredient_line.html" %}
-          {% endfor %}
-        </ul>
-      </section>
-    {% endif %}
+    {% include "recipes/_ingredient_group.html" with heading="Ingrediënten" lines=recipe.shopping_lines %}
 
-    {% if recipe.staple_lines %}
-      {# Apart en onderaan: dit hoort wel bij het recept, maar niet op het
-         boodschappenlijstje -- het staat al in de keuken. #}
-      <section>
-        <h2>Basisingrediënten</h2>
-        <ul>
-          {% for line in recipe.staple_lines %}
-            {% include "recipes/_ingredient_line.html" %}
-          {% endfor %}
-        </ul>
-      </section>
-    {% endif %}
+    {# Apart en onderaan: dit hoort wel bij het recept, maar niet op het
+       boodschappenlijstje -- het staat al in de keuken. #}
+    {% include "recipes/_ingredient_group.html" with heading="Basisingrediënten" lines=recipe.staple_lines %}
   </article>
 {% endblock %}

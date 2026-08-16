@@ -40,13 +40,15 @@ def recipe_form(title, slug="", status=Recipe.Status.DRAFT, lines=()):
 
 
 def ingredient_line_fields(
-    ingredient, quantity="", unit="", note="", position=0, id="", delete=False
+    ingredient, quantity="", unit="", note="", position=0, pk="", delete=False
 ):
     """One row of the ingrediëntregel formset.
 
     `ingredient` is whatever the browser would send for that field, which is
     the key of an existing ingrediënt -- passing a name instead is exactly
-    the mistake the form has to refuse.
+    the mistake the form has to refuse. `pk` is empty for a row being added
+    and the row's own key for one already saved, which is how the formset
+    tells the two apart.
     """
     fields = {
         "ingredient": ingredient,
@@ -54,7 +56,7 @@ def ingredient_line_fields(
         "unit": unit,
         "note": note,
         "position": position,
-        "id": id,
+        "id": pk,
     }
     if delete:
         fields["DELETE"] = "on"

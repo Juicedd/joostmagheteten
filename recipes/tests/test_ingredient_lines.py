@@ -18,9 +18,13 @@ def published_recipe(title):
 
 
 def ingredient_line(
-    recipe, name, quantity=None, unit=Unit.PIECE, note="", is_staple=False, position=0
+    recipe, name, quantity=None, unit="", note="", is_staple=False, position=0
 ):
-    """One ingrediëntregel, creating the ingrediënt it uses if it is new."""
+    """One ingrediëntregel, creating the ingrediënt it uses if it is new.
+
+    No unit unless one is asked for, because a unit without a quantity is
+    the one combination an ingrediëntregel refuses -- "stuk Goudse kaas".
+    """
     ingredient, _ = Ingredient.objects.get_or_create(
         name=name, defaults={"is_staple": is_staple}
     )
@@ -41,7 +45,7 @@ def names_in_reading_order(page, *names):
 
 
 class IngredientLineRenderingTests(TestCase):
-    def test_a_regel_shows_how_much_of_which_ingredient_and_the_remark(self):
+    def test_an_ingredientregel_shows_how_much_of_what_and_the_remark(self):
         # CONTEXT.md's own example of an ingrediëntregel, rendered:
         # "2 blikken zwarte bonen (van 400gr)".
         recipe = published_recipe("Quesadilla met zoete aardappel")
@@ -56,7 +60,7 @@ class IngredientLineRenderingTests(TestCase):
         self.assertContains(page, "Zwarte bonen")
         self.assertContains(page, "van 400gr")
 
-    def test_regels_are_read_in_the_order_the_author_gave_them(self):
+    def test_ingredientregels_are_read_in_the_order_the_author_gave_them(self):
         # A cook reads the list as one thing to shop for and one thing to lay
         # out, so the order is the author's, not alphabetical and not the
         # order the rows happened to be typed in.
@@ -105,17 +109,28 @@ class IngredientLineRenderingTests(TestCase):
         self.assertContains(page, "0,5 liter")
         self.assertNotContains(page, "0.50")
 
-    def test_a_regel_without_a_quantity_still_reads_as_a_sentence(self):
+    def test_an_ingredientregel_without_a_quantity_still_reads_as_a_sentence(self):
         # Peper naar smaak has no number, and the page may not answer that
         # with a stray "None" in front of the name.
         recipe = published_recipe("Andijviestamppot")
-        ingredient_line(recipe, "Peper", unit="", note="naar smaak", is_staple=True)
+        ingredient_line(recipe, "Peper", note="naar smaak", is_staple=True)
 
         page = self.client.get("/recepten/andijviestamppot/")
 
         self.assertContains(page, "Peper")
         self.assertContains(page, "naar smaak")
         self.assertNotContains(page, "None")
+
+    def test_one_and_a_half_of_something_stays_singular(self):
+        # Dutch pluralises whole things -- 2 blikken -- and stops there:
+        # anderhalf blik is still one blik, and part of the next.
+        recipe = published_recipe("Andijviestamppot")
+        ingredient_line(recipe, "Kokosmelk", quantity="1.5", unit=Unit.CAN)
+
+        page = self.client.get("/recepten/andijviestamppot/")
+
+        self.assertContains(page, "1,5 blik")
+        self.assertNotContains(page, "1,5 blikken")
 
     def test_a_recept_without_basisingredienten_shows_no_empty_group(self):
         recipe = published_recipe("Quesadilla met zoete aardappel")

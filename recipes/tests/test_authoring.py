@@ -13,6 +13,7 @@ from django.test import TestCase
 from recipes.models import Ingredient, Recipe, RecipeIngredient, Unit
 from recipes.tests.admin_forms import (
     ADD_RECIPE,
+    LINES,
     change_recipe,
     ingredient_line_fields,
     recipe_form,
@@ -142,9 +143,9 @@ class IngredientLineAuthoringTests(TestCase):
         # would notice until the ingrediëntpagina's showed up half empty.
         response = self.client.get(ADD_RECIPE)
 
-        self.assertContains(response, '<select name="ingredient_lines-0-ingredient"')
+        self.assertContains(response, f'<select name="{LINES}-0-ingredient"')
 
-    def test_the_regels_are_still_there_when_the_recept_is_opened_again(self):
+    def test_the_ingredientregels_are_there_when_the_recept_is_opened_again(self):
         self.write_quesadilla_with(
             ingredient_line_fields(
                 self.beans.pk, quantity="2", unit=Unit.CAN, note="van 400gr"
@@ -176,6 +177,17 @@ class IngredientLineAuthoringTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
 
+    def test_an_eenheid_without_a_hoeveelheid_is_refused(self):
+        # "stuk Goudse kaas" is what this combination renders as, which is
+        # not a sentence. The author is asked about it while writing, rather
+        # than a reader meeting it on the page.
+        response = self.write_quesadilla_with(
+            ingredient_line_fields(self.beans.pk, unit=Unit.CAN)
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
+
     def test_an_ingredient_that_does_not_exist_yet_can_be_added_from_here(self):
         # Halfway through writing a recept is exactly when you meet an
         # ingrediënt the site has never seen. Leaving the page to add it would
@@ -188,6 +200,8 @@ class IngredientLineAuthoringTests(TestCase):
         self.write_quesadilla_with(
             ingredient_line_fields(self.beans.pk, quantity="2", unit=Unit.CAN)
         )
+        # Arranging: the formset addresses a saved row by its key, so posting
+        # the removal needs the key, the same way change_recipe() does.
         written = RecipeIngredient.objects.get()
 
         self.client.post(
@@ -201,7 +215,7 @@ class IngredientLineAuthoringTests(TestCase):
                         self.beans.pk,
                         quantity="2",
                         unit=Unit.CAN,
-                        id=written.pk,
+                        pk=written.pk,
                         delete=True,
                     )
                 ],
@@ -235,15 +249,39 @@ class IngredientLineAuthoringTests(TestCase):
 
 
 class IngredientAuthoringTests(TestCase):
-    """Writing the ingrediënten themselves, which the regels point at."""
+    """Writing the ingrediënten themselves, which ingrediëntregels point at."""
 
     def setUp(self):
         sign_in_as_the_author(self.client)
 
+    def offered_for(self, term):
+        """The ingrediënten the dropdown on a recept offers for a search.
+
+        The same request the browser makes while the author types into that
+        dropdown, which is where the damage of a split ingrediënt would show
+        up: two rows offered where there is one foodstuff.
+        """
+        answer = self.client.get(
+            "/admin/autocomplete/",
+            {
+                "term": term,
+                "app_label": "recipes",
+                "model_name": "recipeingredient",
+                "field_name": "ingredient",
+            },
+        )
+        return [found["text"] for found in answer.json()["results"]]
+
+    def test_the_dropdown_finds_the_ingredienten_there_already_are(self):
+        Ingredient.objects.create(name="Zwarte bonen")
+        Ingredient.objects.create(name="Witte bonen")
+
+        self.assertEqual(self.offered_for("Zwarte"), ["Zwarte bonen"])
+
     def test_an_ingredient_name_cannot_be_used_twice(self):
         # One row per foodstuff is the whole point: a second "Zwarte bonen"
-        # would split every regel, ingrediëntpagina and boodschappenlijst
-        # that ever gathers them, and nobody would see it happen.
+        # would split every ingrediëntregel, ingrediëntpagina and
+        # boodschappenlijst that ever gathers them, unnoticed.
         Ingredient.objects.create(name="Zwarte bonen")
 
         response = self.client.post(
@@ -251,8 +289,10 @@ class IngredientAuthoringTests(TestCase):
             {"name": "Zwarte bonen", "slug": "", "is_staple": False},
         )
 
+        # The form comes back rather than redirecting, and the dropdown still
+        # offers the one ingrediënt it offered before.
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(Ingredient.objects.filter(name="Zwarte bonen").count(), 1)
+        self.assertEqual(self.offered_for("bonen"), ["Zwarte bonen"])
 
     def test_the_form_says_how_specific_a_name_has_to_be(self):
         # ADR-0007 is a decision about the data, and the moment it is applied

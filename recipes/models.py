@@ -10,6 +10,7 @@ basisingrediënt. Step arrives in #6.
 
 from functools import cached_property
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.text import slugify
 
@@ -122,7 +123,9 @@ class Recipe(PermanentSlug):
     @cached_property
     def shopping_lines(self):
         """The ingrediëntregels a reader actually has to buy."""
-        return self._lines(staples=False)
+        return self.ingredient_lines.filter(ingredient__is_staple=False).select_related(
+            "ingredient"
+        )
 
     @cached_property
     def staple_lines(self):
@@ -132,12 +135,9 @@ class Recipe(PermanentSlug):
         into it -- but shown apart, so that what a reader has to shop for is
         not padded out with the zout they already own.
         """
-        return self._lines(staples=True)
-
-    def _lines(self, staples):
-        return self.ingredient_lines.filter(
-            ingredient__is_staple=staples
-        ).select_related("ingredient")
+        return self.ingredient_lines.filter(ingredient__is_staple=True).select_related(
+            "ingredient"
+        )
 
 
 class Ingredient(PermanentSlug):
@@ -250,7 +250,7 @@ class RecipeIngredient(models.Model):
         Ingredient,
         verbose_name="ingrediënt",
         # An ingrediënt that recepten point at is not deletable by accident:
-        # removing it would take the regels of every recept using it with it.
+        # removing it takes the ingrediëntregels of every recept with it.
         on_delete=models.PROTECT,
         related_name="lines",
     )
@@ -288,12 +288,41 @@ class RecipeIngredient(models.Model):
         verbose_name = "ingrediëntregel"
         verbose_name_plural = "ingrediëntregels"
         # The author's order, and then the order they were written in, so
-        # that regels sharing a number never swap places between two loads
-        # of the same page.
+        # that two ingrediëntregels sharing a number never swap places
+        # between two loads of the same page.
         ordering = ["position", "pk"]
+        constraints = [
+            # The same rule as clean() below, kept where a write that never
+            # saw a form -- the importer ADR-0001 leaves room for -- still
+            # runs into it.
+            models.CheckConstraint(
+                condition=models.Q(unit="") | models.Q(quantity__isnull=False),
+                name="een_eenheid_heeft_een_hoeveelheid",
+            )
+        ]
 
     def __str__(self):
         return f"{self.amount} {self.ingredient}".strip()
+
+    def clean(self):
+        """An eenheid says nothing on its own.
+
+        "stuk Goudse kaas" is not a sentence, and it is the sentence a unit
+        with no quantity produces. Refused here rather than papered over
+        while rendering, so that the recept is asked about it once, while it
+        is being written.
+        """
+        super().clean()
+        if self.unit and self.quantity is None:
+            raise ValidationError(
+                {
+                    "unit": (
+                        "Een eenheid zonder hoeveelheid zegt niets. Vul een "
+                        "hoeveelheid in, of laat de eenheid leeg en zet het "
+                        "in de opmerking ('naar smaak')."
+                    )
+                }
+            )
 
     @property
     def amount(self):
@@ -317,9 +346,19 @@ class RecipeIngredient(models.Model):
 
     @property
     def unit_label(self):
-        """The unit, pluralised when there is more than one of it."""
+        """The unit, pluralised only where Dutch pluralises it.
+
+        Dutch counts whole things in the plural -- 2 blikken, 4 tenen -- and
+        leaves everything else singular: 1 blik, and 1,5 blik as well.
+        """
         if not self.unit:
             return ""
-        if self.quantity is not None and self.quantity != 1:
+        if self.counts_whole_things():
             return PLURAL_UNITS.get(self.unit, self.get_unit_display())
         return self.get_unit_display()
+
+    def counts_whole_things(self):
+        """More than one of something, and not a fraction of the next one."""
+        if self.quantity is None or self.quantity <= 1:
+            return False
+        return self.quantity == self.quantity.to_integral_value()
