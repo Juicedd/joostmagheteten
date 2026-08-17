@@ -1,0 +1,15 @@
+{% comment %}
+  Wat iemand nodig heeft om te beslissen of hij dit vanavond maakt: de tijden,
+  de porties en de classificaties. Welke regels er zijn bepaalt het recept
+  zelf -- niet ingevuld is geen regel, want een kop zonder antwoord kost een
+  regel en zegt niets. De oordelen staan hier met opzet niet tussen en horen
+  op geen enkele pagina thuis (CONTEXT.md).
+{% endcomment %}
+{% if recipe.facts %}
+  <dl>
+    {% for fact in recipe.facts %}
+      <dt>{{ fact.term }}</dt>
+      <dd>{{ fact.value }}</dd>
+    {% endfor %}
+  </dl>
+{% endif %}

@@ -18,6 +18,8 @@
   <article>
     <h1>{{ recipe.title }}</h1>
 
+    {% include "recipes/_facts.html" %}
+
     {% include "recipes/_ingredient_group.html" with heading="Ingrediënten" lines=recipe.shopping_lines %}
 
     {% comment %}

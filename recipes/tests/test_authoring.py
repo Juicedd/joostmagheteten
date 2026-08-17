@@ -10,7 +10,15 @@ inline formsets.
 
 from django.test import TestCase
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Step, Unit
+from recipes.models import (
+    DishType,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    Season,
+    Step,
+    Unit,
+)
 from recipes.tests.admin_forms import (
     ADD_RECIPE,
     LINES,
@@ -385,6 +393,145 @@ class StepAuthoringTests(TestCase):
         page = self.client.get(QUESADILLA_URL)
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "Verhit een pan.")
+
+
+class RecipeFactAuthoringTests(TestCase):
+    """Filling in the tijden, the porties and the classificaties."""
+
+    def setUp(self):
+        sign_in_as_the_author(self.client)
+
+    def publish_quesadilla_with(self, **facts):
+        return self.client.post(
+            ADD_RECIPE,
+            recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, **facts),
+        )
+
+    def test_the_form_asks_for_the_times_in_minutes(self):
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "Bereidingstijd")
+        self.assertContains(response, "Kooktijd")
+        self.assertContains(response, "Porties")
+        self.assertContains(response, "In minuten")
+
+    def test_the_author_is_shown_a_total_he_cannot_type(self):
+        # There is no field for it, so there is no third number that can be
+        # left behind -- and it is on the form anyway, because the number the
+        # author would otherwise write down somewhere is the whole risk.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "Totale tijd")
+        self.assertNotContains(response, 'name="total_minutes"')
+
+    def test_the_total_follows_the_two_times_it_is_made_of(self):
+        # Which is what "computed, never stored" is for: rewriting the
+        # kooktijd afterwards cannot leave a stale total behind, on the page
+        # or on the form the author is looking at.
+        self.publish_quesadilla_with(prep_minutes=20, cook_minutes=30)
+
+        form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
+        self.assertContains(form, "50 minuten")
+
+        self.client.post(
+            change_recipe("quesadilla-met-zoete-aardappel"),
+            recipe_form(
+                QUESADILLA,
+                slug="quesadilla-met-zoete-aardappel",
+                status=Recipe.Status.PUBLISHED,
+                prep_minutes=20,
+                cook_minutes=40,
+            ),
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "1 uur")
+        self.assertNotContains(page, "50 minuten")
+
+    def test_the_classificaties_are_ticked_rather_than_typed(self):
+        # A typed seizoen is "Herfst" beside "herfst", which is the same
+        # split the eenheid list exists to prevent -- and this one would be
+        # noticed the first time a visitor filters on a seizoen.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(
+            response, '<input type="checkbox" name="seasons" value="spring"'
+        )
+        self.assertContains(
+            response, '<input type="checkbox" name="dish_types" value="lunch"'
+        )
+
+    def test_a_recept_can_be_given_more_than_one_gerechtstype(self):
+        self.publish_quesadilla_with(dish_types=[DishType.LUNCH, DishType.MAIN])
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "lunch, hoofdgerecht")
+
+    def test_a_recept_for_the_whole_year_is_all_four_seizoenen(self):
+        self.publish_quesadilla_with(
+            seasons=[Season.SPRING, Season.SUMMER, Season.AUTUMN, Season.WINTER]
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "hele jaar door")
+
+
+class OordeelAuthoringTests(TestCase):
+    """Recording Joost's own cijfers, which the site never repeats."""
+
+    def setUp(self):
+        sign_in_as_the_author(self.client)
+
+    def publish_quesadilla_with(self, **fields):
+        return self.client.post(
+            ADD_RECIPE,
+            recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, **fields),
+        )
+
+    def test_the_author_records_an_oordeel_and_finds_it_back(self):
+        self.publish_quesadilla_with(nutrition_score=3, budget_score=4, rating=5)
+
+        form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
+
+        self.assertEqual(form.status_code, 200)
+        self.assertContains(form, 'name="nutrition_score" value="3"')
+        self.assertContains(form, 'name="budget_score" value="4"')
+        self.assertContains(form, 'name="rating" value="5"')
+
+    def test_an_oordeel_written_here_reaches_no_reader(self):
+        # The same absence test_recipe_facts.py makes of the model, made of
+        # the whole way round instead: written on the form Joost actually
+        # uses, and read back as a visitor actually reads it.
+        self.publish_quesadilla_with(nutrition_score=3, budget_score=4, rating=5)
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, "3")
+        self.assertNotContains(page, "4")
+        self.assertNotContains(page, "5")
+
+    def test_the_form_says_that_an_oordeel_is_never_published(self):
+        # The rule belongs where it is applied, the way ADR-0007 lives on the
+        # ingrediënt form: a glossary nobody has open while writing is not
+        # what keeps a voedingsscore off the site.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "Voedingsscore")
+        self.assertContains(response, "geen enkele pagina")
+
+    def test_an_oordeel_outside_the_scale_is_refused(self):
+        # 1 to 5, so that two recepten mean the same thing by a 4.
+        response = self.publish_quesadilla_with(rating=9)
+
+        # The form comes back instead of redirecting, and nothing was written.
+        self.assertEqual(response.status_code, 200)
+        self.client.logout()
+        self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
 
 
 class IngredientAuthoringTests(TestCase):

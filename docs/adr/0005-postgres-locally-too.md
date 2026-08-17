@@ -9,3 +9,5 @@ SQLite is genuinely the easier option: no Docker, no container to start, no port
 Docker is a genuine prerequisite for working on this project, and `docker compose up -d db` is a real step in setup. That cost is accepted.
 
 The test suite needs a running Postgres, so tests cannot be run on a machine where the container is down. This is the intended trade: tests that exercise the real database are worth more than tests that run anywhere.
+
+Since the classificaties (`Recipe.seasons`, `Recipe.dish_types`) are stored in Postgres array columns, this decision has stopped being merely prudent and become load-bearing: there is no longer a SQLite fallback to retreat to, and reopening this ADR now means reopening how a recept's classificaties are stored.

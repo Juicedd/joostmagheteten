@@ -35,6 +35,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Postgres-only model fields -- the array a recept's classificaties are
+    # kept in. Nothing is given up by depending on it: ADR-0005 already puts
+    # Postgres under every environment, laptop included.
+    "django.contrib.postgres",
     "recipes",
 ]
 
