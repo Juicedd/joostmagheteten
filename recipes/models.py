@@ -4,8 +4,8 @@ The recept and what hangs off it.
 Read CONTEXT.md before adding anything here: per ADR-0002 the identifiers are
 English and the interface is Dutch, and the glossary is the only record of
 which is which -- Ingredient is an ingrediënt, RecipeIngredient is an
-ingrediëntregel, `Step.phase` is a fase, and `is_staple` is what makes an
-ingrediënt a basisingrediënt.
+ingrediëntregel, `Step.phase` is a fase, `Fact` is a kerngegeven, and
+`is_staple` is what makes an ingrediënt a basisingrediënt.
 """
 
 from collections import namedtuple
@@ -156,8 +156,16 @@ class ChoiceArrayField(ArrayField):
         )
 
 
-# An oordeel runs from 1 to 5, the way the vault's own notes score one.
-SCORE_RANGE = [MinValueValidator(1), MaxValueValidator(5)]
+# An oordeel runs from 1 to 5, the way the vault's own notes score one. Two
+# recepten have to mean the same thing by a 4, or the numbers Joost keeps are
+# not comparable to each other -- which is the only thing they are for.
+SCORE_IS_1_TO_5 = [MinValueValidator(1), MaxValueValidator(5)]
+
+# Zero is not a small number here but a wrong one. A recept that needs no
+# kooktijd has none rather than nought, and "Kooktijd 0 minuten" on a page is
+# the same non-sentence as "stuk Goudse kaas" -- so it is refused while the
+# recept is written, the way an eenheid without a hoeveelheid is.
+AT_LEAST_ONE = [MinValueValidator(1)]
 
 
 def duration_label(minutes):
@@ -180,9 +188,9 @@ def duration_label(minutes):
     return " ".join(parts)
 
 
-# One row of the block a reader decides from: what it is called, and what it
-# says. Built by Recipe.facts, which is the only thing that knows which rows
-# a given recept has at all.
+# One kerngegeven: what it is called, and what it says. It exists only where
+# the page is being written, the way a fase does -- Recipe.facts builds the
+# list, and is the only thing that knows which rows a given recept has at all.
 Fact = namedtuple("Fact", "term value")
 
 
@@ -220,24 +228,28 @@ class Recipe(PermanentSlug):
         "bereidingstijd",
         null=True,
         blank=True,
+        validators=AT_LEAST_ONE,
         help_text=(
             "In minuten, als getal: 20, niet '20 minuten'. De pagina maakt er "
-            "zelf '20 minuten' of '1 uur 30 minuten' van."
+            "zelf '20 minuten' of '1 uur 30 minuten' van. Niet van toepassing? "
+            "Laat leeg -- 0 is geen tijd."
         ),
     )
     cook_minutes = models.PositiveSmallIntegerField(
         "kooktijd",
         null=True,
         blank=True,
+        validators=AT_LEAST_ONE,
         help_text=(
-            "Ook in minuten. De totale tijd wordt hiervan opgeteld en vul je "
-            "dus nergens in."
+            "Ook in minuten, en ook leeg als er niets gekookt wordt. De totale "
+            "tijd wordt hiervan opgeteld en vul je dus nergens in."
         ),
     )
     servings = models.PositiveSmallIntegerField(
         "porties",
         null=True,
         blank=True,
+        validators=AT_LEAST_ONE,
         help_text="Voor hoeveel mensen de ingrediëntregels bedoeld zijn.",
     )
     difficulty = models.CharField(
@@ -269,21 +281,24 @@ class Recipe(PermanentSlug):
         "voedingsscore",
         null=True,
         blank=True,
-        validators=SCORE_RANGE,
+        validators=SCORE_IS_1_TO_5,
         help_text="1 tot 5, voor jezelf. Komt op geen enkele pagina te staan.",
     )
     budget_score = models.PositiveSmallIntegerField(
         "budgetscore",
         null=True,
         blank=True,
-        validators=SCORE_RANGE,
+        validators=SCORE_IS_1_TO_5,
         help_text="1 tot 5, voor jezelf. Komt op geen enkele pagina te staan.",
     )
+    # "waardering" and not "rating": the identifier is the spec's, the label
+    # is Dutch (ADR-0002), and CONTEXT.md lists rating among the words this
+    # site does not use for an oordeel.
     rating = models.PositiveSmallIntegerField(
-        "rating",
+        "waardering",
         null=True,
         blank=True,
-        validators=SCORE_RANGE,
+        validators=SCORE_IS_1_TO_5,
         help_text="1 tot 5, voor jezelf. Komt op geen enkele pagina te staan.",
     )
 
@@ -315,15 +330,9 @@ class Recipe(PermanentSlug):
         return self.prep_minutes + self.cook_minutes
 
     @property
-    def prep_time_label(self):
-        return duration_label(self.prep_minutes)
-
-    @property
-    def cook_time_label(self):
-        return duration_label(self.cook_minutes)
-
-    @property
     def total_time_label(self):
+        # The only one of the three that is wanted anywhere but in facts():
+        # the admin shows it beside the two numbers it is made of.
         return duration_label(self.total_minutes)
 
     @property
@@ -355,17 +364,21 @@ class Recipe(PermanentSlug):
             dish_type.label for dish_type in DishType if dish_type in self.dish_types
         )
 
-    @property
+    @cached_property
     def facts(self):
-        """The block a reader decides from, in the order the page prints it.
+        """The kerngegevens, in the order the page reads them out.
 
         What a recept was not told stays off it: a recept with no seizoen
         gets no seizoen row rather than an empty one, the same way a recept
-        with no stappen gets no Instructies heading.
+        with no stappen gets no Instructies heading. The page asks for this
+        twice -- once to find out whether there is a block at all, once to
+        print it -- which is what the caching is for.
+
+        No oordeel is a kerngegeven, and this is the list the page prints.
         """
         rows = [
-            Fact("Bereidingstijd", self.prep_time_label),
-            Fact("Kooktijd", self.cook_time_label),
+            Fact("Bereidingstijd", duration_label(self.prep_minutes)),
+            Fact("Kooktijd", duration_label(self.cook_minutes)),
             Fact("Totale tijd", self.total_time_label),
             Fact("Porties", self.servings_label),
             Fact("Moeilijkheidsgraad", self.get_difficulty_display()),

@@ -38,6 +38,10 @@ _Avoid_: persoon, serving
 The bereidingstijd plus the kooktijd, worked out every time it is read and never written down anywhere. A recept that stores all three has one that is wrong the moment a time is edited and the total forgotten. The two halves are whole minutes — a number, so that a recept can be compared, added up and filtered on; turning that into the Dutch a reader wants ("1 uur 30 minuten") is the page's job, not the database's. A total needs both halves: with one of them missing it would repeat the other under a different word, so there is nothing to say. In code: `Recipe.prep_minutes` and `Recipe.cook_minutes` are fields, and `Recipe.total_minutes` is deliberately not.
 _Avoid_: bereidingstijd (that is one of the two halves, not the whole), duur
 
+**Kerngegeven**:
+One line of the block at the top of a recept that someone deciding whether to cook it reads first — a bereidingstijd, a portie-count, a seizoen. A recept shows only the kerngegevens it has: an empty one is left out rather than printed blank. Like a fase, a kerngegeven exists only where the page is being written: `Recipe.facts` builds the list and `Fact` is its shape. No oordeel is ever a kerngegeven.
+_Avoid_: metadata, samenvatting, receptinfo
+
 **Fase**:
 A named group of consecutive steps within a recept's instructions — mise en place, the cooking itself, assembly. Fases group the steps but do not restart their numbering: a recept has one continuous sequence of steps, divided into fases. A recept that returns to an earlier fase gets a second stretch under that name rather than having its later steps lifted out of place to join the first. In code: the steps are `Step` rows on the recept, and the name of the fase is `Step.phase`, a label each step carries — grouping is then something the page does with them, and never something the numbering has to know about. The fase itself, name and steps together, exists only where the page is being written: `Recipe.phases` builds it and `Phase` is its shape. What a reader sees numbered is not `Step.position` either; that orders the steps, and the page counts them.
 _Avoid_: sectie, deel, stage
@@ -67,5 +71,5 @@ A statement about a recept that any competent cook would broadly agree with — 
 _Avoid_: tag, label, categorie
 
 **Oordeel**:
-Joost's personal opinion of a recept expressed as a number from 1 to 5 — voedingsscore, budgetscore, rating. An oordeel is recorded for Joost's own use and is **never published**: it is an opinion dressed as a measurement, and publishing it would make a claim the site can't stand behind. Nothing in the code stops a template from printing one, so the guarantee is a test that asks the rendered page for their absence rather than a rule the model enforces. In code: `Recipe.nutrition_score`, `Recipe.budget_score` and `Recipe.rating`.
-_Avoid_: score, rating, beoordeling — *rating* is the name of one of the three, but the kind is always an oordeel
+Joost's personal opinion of a recept expressed as a number from 1 to 5 — voedingsscore, budgetscore, waardering. An oordeel is recorded for Joost's own use and is **never published**: it is an opinion dressed as a measurement, and publishing it would make a claim the site can't stand behind. Nothing in the code stops a template from printing one, so the guarantee is a test that renders the same recept with and without its oordelen and demands the two pages be identical — an absence cannot be checked by reading the template. In code: `Recipe.nutrition_score`, `Recipe.budget_score` and `Recipe.rating`, whose Dutch label is **waardering**.
+_Avoid_: score, rating, beoordeling

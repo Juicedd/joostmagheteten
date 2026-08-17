@@ -46,6 +46,21 @@ def step(recipe, position, text, phase=""):
     return Step.objects.create(recipe=recipe, position=position, text=text, phase=phase)
 
 
+# The words that would give an oordeel away if one ever reached a template,
+# including the ones CONTEXT.md tells us not to use for it: a leak under a
+# name the glossary forbids is still a leak. Kept here because both the page
+# tests and the authoring tests ask a page for the same absence.
+OORDEEL_WORDS = [
+    "voedingsscore",
+    "budgetscore",
+    "waardering",
+    "rating",
+    "oordeel",
+    "beoordeling",
+    "score",
+]
+
+
 def in_reading_order(page, *fragments):
     """The given fragments, sorted by where they appear on the rendered page.
 

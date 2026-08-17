@@ -11,7 +11,12 @@ absence is the one thing that cannot be checked by reading the template.
 from django.test import TestCase
 
 from recipes.models import Difficulty, DishType, Recipe, Season, Unit
-from recipes.tests.arranging import ingredient_line, published_recipe, step
+from recipes.tests.arranging import (
+    OORDEEL_WORDS,
+    ingredient_line,
+    published_recipe,
+    step,
+)
 from recipes.tests.authors import sign_in_with_only_the_staff_flag
 
 ANDIJVIE = "Andijviestamppot"
@@ -169,19 +174,6 @@ class ClassificatieTests(TestCase):
         self.assertNotContains(page, "Gerechtstype")
 
 
-# The words that would give an oordeel away if one ever reached a template,
-# including the ones CONTEXT.md tells us not to use for it: a leak is just as
-# bad under a name the glossary forbids.
-OORDEEL_WORDS = [
-    "voedingsscore",
-    "budgetscore",
-    "rating",
-    "oordeel",
-    "beoordeling",
-    "score",
-]
-
-
 class OordeelTests(TestCase):
     """Joost's own numbers, which no visitor is ever shown (CONTEXT.md).
 
@@ -190,19 +182,26 @@ class OordeelTests(TestCase):
     have to keep working when everything else about the page changes.
     """
 
-    def test_no_oordeel_reaches_a_reader(self):
-        # Deliberately bare: with no times, porties or steps on it, the only
-        # digits a recept page could carry are the ones in its head -- the 1
-        # of initial-scale and the 8 of utf-8 -- so oordelen of 3, 4 and 5
-        # can be looked for as digits and not merely as words.
-        published_recipe(ANDIJVIE, nutrition_score=3, budget_score=4, rating=5)
+    def test_giving_a_recept_oordelen_changes_nothing_a_reader_sees(self):
+        # The whole requirement in one assertion, and the reason it is put
+        # this way round: looking for the digits 3, 4 and 5 in the HTML would
+        # only work while nothing else on the page has a digit in it, and the
+        # first hero photo or footer would break it for a reason that has
+        # nothing to do with a leak. The same recept before and after being
+        # given its oordelen has to be the same page, whatever is on it.
+        recipe = published_recipe(ANDIJVIE, prep_minutes=20, cook_minutes=30)
+        ingredient_line(recipe, "Andijvie", quantity="500", unit=Unit.GRAM)
+        step(recipe, 1, "Kook de aardappels gaar.")
+        before = self.client.get(ANDIJVIE_URL)
 
-        page = self.client.get(ANDIJVIE_URL)
+        recipe.nutrition_score = 3
+        recipe.budget_score = 4
+        recipe.rating = 5
+        recipe.save()
 
-        self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, "3")
-        self.assertNotContains(page, "4")
-        self.assertNotContains(page, "5")
+        after = self.client.get(ANDIJVIE_URL)
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.content, before.content)
 
     def test_no_oordeel_is_named_on_a_finished_recept(self):
         # The whole page this time, with everything a recept can carry on it,
@@ -234,18 +233,17 @@ class OordeelTests(TestCase):
         # The preview is the page a visitor gets, so an oordeel that only
         # showed up here would be one that is a single publish away from
         # being public -- and nobody would be looking at that page again.
-        Recipe.objects.create(
-            title=ANDIJVIE,
-            status=Recipe.Status.DRAFT,
-            nutrition_score=3,
-            budget_score=4,
-            rating=5,
+        recipe = Recipe.objects.create(
+            title=ANDIJVIE, status=Recipe.Status.DRAFT, prep_minutes=20
         )
         sign_in_with_only_the_staff_flag(self.client)
+        before = self.client.get(ANDIJVIE_URL)
 
-        page = self.client.get(ANDIJVIE_URL)
+        recipe.nutrition_score = 3
+        recipe.budget_score = 4
+        recipe.rating = 5
+        recipe.save()
 
-        self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, "3")
-        self.assertNotContains(page, "4")
-        self.assertNotContains(page, "5")
+        after = self.client.get(ANDIJVIE_URL)
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.content, before.content)

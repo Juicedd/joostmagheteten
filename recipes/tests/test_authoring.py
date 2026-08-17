@@ -28,6 +28,7 @@ from recipes.tests.admin_forms import (
     recipe_form,
     step_fields,
 )
+from recipes.tests.arranging import OORDEEL_WORDS
 from recipes.tests.authors import sign_in_as_the_author
 
 
@@ -395,17 +396,23 @@ class StepAuthoringTests(TestCase):
         self.assertNotContains(page, "Verhit een pan.")
 
 
+def publish_quesadilla(client, **fields):
+    """The worked example, published, carrying whatever a test is about.
+
+    Shared by the two classes below: they write the same recept through the
+    same form and then ask two different questions of what came out.
+    """
+    return client.post(
+        ADD_RECIPE,
+        recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, **fields),
+    )
+
+
 class RecipeFactAuthoringTests(TestCase):
     """Filling in the tijden, the porties and the classificaties."""
 
     def setUp(self):
         sign_in_as_the_author(self.client)
-
-    def publish_quesadilla_with(self, **facts):
-        return self.client.post(
-            ADD_RECIPE,
-            recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, **facts),
-        )
 
     def test_the_form_asks_for_the_times_in_minutes(self):
         response = self.client.get(ADD_RECIPE)
@@ -428,7 +435,7 @@ class RecipeFactAuthoringTests(TestCase):
         # Which is what "computed, never stored" is for: rewriting the
         # kooktijd afterwards cannot leave a stale total behind, on the page
         # or on the form the author is looking at.
-        self.publish_quesadilla_with(prep_minutes=20, cook_minutes=30)
+        publish_quesadilla(self.client, prep_minutes=20, cook_minutes=30)
 
         form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
         self.assertContains(form, "50 minuten")
@@ -463,20 +470,35 @@ class RecipeFactAuthoringTests(TestCase):
         )
 
     def test_a_recept_can_be_given_more_than_one_gerechtstype(self):
-        self.publish_quesadilla_with(dish_types=[DishType.LUNCH, DishType.MAIN])
+        publish_quesadilla(self.client, dish_types=[DishType.LUNCH, DishType.MAIN])
 
         self.client.logout()
         page = self.client.get(QUESADILLA_URL)
         self.assertContains(page, "lunch, hoofdgerecht")
 
     def test_a_recept_for_the_whole_year_is_all_four_seizoenen(self):
-        self.publish_quesadilla_with(
-            seasons=[Season.SPRING, Season.SUMMER, Season.AUTUMN, Season.WINTER]
+        publish_quesadilla(
+            self.client,
+            seasons=[Season.SPRING, Season.SUMMER, Season.AUTUMN, Season.WINTER],
         )
 
         self.client.logout()
         page = self.client.get(QUESADILLA_URL)
         self.assertContains(page, "hele jaar door")
+
+    def test_a_zero_is_refused_where_it_would_only_mean_nothing(self):
+        # A recept that needs no kooktijd has none rather than nought: 0
+        # would print as "Kooktijd 0 minuten" and still be counted into a
+        # total. The author is asked about it while writing, the same way an
+        # eenheid without a hoeveelheid is.
+        for field in ("prep_minutes", "cook_minutes", "servings"):
+            with self.subTest(field=field):
+                response = publish_quesadilla(self.client, **{field: 0})
+
+                # The form comes back rather than redirecting, and nothing
+                # was written.
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
 
 
 class OordeelAuthoringTests(TestCase):
@@ -485,14 +507,8 @@ class OordeelAuthoringTests(TestCase):
     def setUp(self):
         sign_in_as_the_author(self.client)
 
-    def publish_quesadilla_with(self, **fields):
-        return self.client.post(
-            ADD_RECIPE,
-            recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, **fields),
-        )
-
     def test_the_author_records_an_oordeel_and_finds_it_back(self):
-        self.publish_quesadilla_with(nutrition_score=3, budget_score=4, rating=5)
+        publish_quesadilla(self.client, nutrition_score=3, budget_score=4, rating=5)
 
         form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
 
@@ -501,19 +517,22 @@ class OordeelAuthoringTests(TestCase):
         self.assertContains(form, 'name="budget_score" value="4"')
         self.assertContains(form, 'name="rating" value="5"')
 
-    def test_an_oordeel_written_here_reaches_no_reader(self):
-        # The same absence test_recipe_facts.py makes of the model, made of
-        # the whole way round instead: written on the form Joost actually
-        # uses, and read back as a visitor actually reads it.
-        self.publish_quesadilla_with(nutrition_score=3, budget_score=4, rating=5)
+    def test_an_oordeel_written_here_is_named_on_no_page(self):
+        # The whole way round this time: written on the form Joost actually
+        # uses, and read back as a visitor actually reads it. Whether the
+        # numbers themselves get out is test_recipe_facts.py's question --
+        # this one is about the words, because a heading with nothing after
+        # it is a leak too.
+        publish_quesadilla(self.client, nutrition_score=3, budget_score=4, rating=5)
 
         self.client.logout()
         page = self.client.get(QUESADILLA_URL)
 
         self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, "3")
-        self.assertNotContains(page, "4")
-        self.assertNotContains(page, "5")
+        for word in OORDEEL_WORDS:
+            with self.subTest(word=word):
+                self.assertNotContains(page, word)
+                self.assertNotContains(page, word.capitalize())
 
     def test_the_form_says_that_an_oordeel_is_never_published(self):
         # The rule belongs where it is applied, the way ADR-0007 lives on the
@@ -526,7 +545,7 @@ class OordeelAuthoringTests(TestCase):
 
     def test_an_oordeel_outside_the_scale_is_refused(self):
         # 1 to 5, so that two recepten mean the same thing by a 4.
-        response = self.publish_quesadilla_with(rating=9)
+        response = publish_quesadilla(self.client, rating=9)
 
         # The form comes back instead of redirecting, and nothing was written.
         self.assertEqual(response.status_code, 200)
