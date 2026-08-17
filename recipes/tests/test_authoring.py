@@ -10,7 +10,15 @@ inline formsets.
 
 from django.test import TestCase
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Step, Unit
+from recipes.models import (
+    DishType,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    Season,
+    Step,
+    Unit,
+)
 from recipes.tests.admin_forms import (
     ADD_RECIPE,
     LINES,
@@ -385,6 +393,111 @@ class StepAuthoringTests(TestCase):
         page = self.client.get(QUESADILLA_URL)
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "Verhit een pan.")
+
+
+def publish_quesadilla(client, **fields):
+    """The worked example, published, carrying whatever a test is about.
+
+    Shared by the two classes below: they write the same recept through the
+    same form and then ask two different questions of what came out.
+    """
+    return client.post(
+        ADD_RECIPE,
+        recipe_form(QUESADILLA, status=Recipe.Status.PUBLISHED, **fields),
+    )
+
+
+class RecipeFactAuthoringTests(TestCase):
+    """Filling in the tijden, the porties and the classificaties."""
+
+    def setUp(self):
+        sign_in_as_the_author(self.client)
+
+    def test_the_form_asks_for_the_times_in_minutes(self):
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "Bereidingstijd")
+        self.assertContains(response, "Kooktijd")
+        self.assertContains(response, "Porties")
+        self.assertContains(response, "In minuten")
+
+    def test_the_author_is_shown_a_total_he_cannot_type(self):
+        # There is no field for it, so there is no third number that can be
+        # left behind -- and it is on the form anyway, because the number the
+        # author would otherwise write down somewhere is the whole risk.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(response, "Totale tijd")
+        self.assertNotContains(response, 'name="total_minutes"')
+
+    def test_the_total_follows_the_two_times_it_is_made_of(self):
+        # Which is what "computed, never stored" is for: rewriting the
+        # kooktijd afterwards cannot leave a stale total behind, on the page
+        # or on the form the author is looking at.
+        publish_quesadilla(self.client, prep_minutes=20, cook_minutes=30)
+
+        form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
+        self.assertContains(form, "50 minuten")
+
+        self.client.post(
+            change_recipe("quesadilla-met-zoete-aardappel"),
+            recipe_form(
+                QUESADILLA,
+                slug="quesadilla-met-zoete-aardappel",
+                status=Recipe.Status.PUBLISHED,
+                prep_minutes=20,
+                cook_minutes=40,
+            ),
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "1 uur")
+        self.assertNotContains(page, "50 minuten")
+
+    def test_the_classificaties_are_ticked_rather_than_typed(self):
+        # A typed seizoen is "Herfst" beside "herfst", which is the same
+        # split the eenheid list exists to prevent -- and this one would be
+        # noticed the first time a visitor filters on a seizoen.
+        response = self.client.get(ADD_RECIPE)
+
+        self.assertContains(
+            response, '<input type="checkbox" name="seasons" value="spring"'
+        )
+        self.assertContains(
+            response, '<input type="checkbox" name="dish_types" value="lunch"'
+        )
+
+    def test_a_recept_can_be_given_more_than_one_gerechtstype(self):
+        publish_quesadilla(self.client, dish_types=[DishType.LUNCH, DishType.MAIN])
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "lunch, hoofdgerecht")
+
+    def test_a_recept_for_the_whole_year_is_all_four_seizoenen(self):
+        publish_quesadilla(
+            self.client,
+            seasons=[Season.SPRING, Season.SUMMER, Season.AUTUMN, Season.WINTER],
+        )
+
+        self.client.logout()
+        page = self.client.get(QUESADILLA_URL)
+        self.assertContains(page, "hele jaar door")
+
+    def test_a_zero_is_refused_where_it_would_only_mean_nothing(self):
+        # A recept that needs no kooktijd has none rather than nought: 0
+        # would print as "Kooktijd 0 minuten" and still be counted into a
+        # total. The author is asked about it while writing, the same way an
+        # eenheid without a hoeveelheid is.
+        for field in ("prep_minutes", "cook_minutes", "servings"):
+            with self.subTest(field=field):
+                response = publish_quesadilla(self.client, **{field: 0})
+
+                # The form comes back rather than redirecting, and nothing
+                # was written.
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
 
 
 class IngredientAuthoringTests(TestCase):

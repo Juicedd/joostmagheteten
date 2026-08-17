@@ -75,8 +75,8 @@ class IngredientAdmin(admin.ModelAdmin):
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    list_display = ("title", "status")
-    list_filter = ("status",)
+    list_display = ("title", "status", "difficulty")
+    list_filter = ("status", "difficulty")
     search_fields = ("title",)
     # In the order a recept is written: what goes in it, and then what to do
     # with it.
@@ -87,3 +87,32 @@ class RecipeAdmin(admin.ModelAdmin):
     # has a URL leaves that URL alone -- which is the same promise the model
     # makes on save (ADR-0006).
     prepopulated_fields = {"slug": ("title",)}
+    # Read-only because it is not a field: it is the two times either side of
+    # it added up. Shown while writing anyway, so the number the author would
+    # otherwise be tempted to write down somewhere is already there.
+    readonly_fields = ["total_time"]
+    # Grouped in the order a recept is decided on: what it is, how long it
+    # takes and how many it feeds, and then what a visitor will filter on.
+    # Every field on this form reaches the page -- there is no half of it
+    # that is only for Joost, and nothing written here is held back.
+    fieldsets = [
+        (None, {"fields": ["title", "slug", "status"]}),
+        (
+            "Tijden en porties",
+            {"fields": ["prep_minutes", "cook_minutes", "total_time", "servings"]},
+        ),
+        (
+            "Classificaties",
+            {
+                "fields": ["difficulty", "seasons", "dish_types"],
+                "description": (
+                    "Wat een andere kok het met je eens zou zijn. Dit staat op "
+                    "de receptpagina en is later waar een bezoeker op filtert."
+                ),
+            },
+        ),
+    ]
+
+    @admin.display(description="totale tijd")
+    def total_time(self, recipe):
+        return recipe.total_time_label

@@ -17,17 +17,23 @@ LINES = "ingredient_lines"
 STEPS = "steps"
 
 
-def recipe_form(title, slug="", status=Recipe.Status.DRAFT, lines=(), steps=()):
+def recipe_form(
+    title, slug="", status=Recipe.Status.DRAFT, lines=(), steps=(), **fields
+):
     """The fields the admin's recept form posts.
 
     An empty slug is what the browser sends when the author has not touched
     the field and the prepopulate script has not run -- which is the case
     worth covering, because it is the one where the server has to fill it in.
+
+    Everything else about a recept is optional and is left out unless a test
+    is about it, exactly as the browser leaves out a field nobody filled in.
     """
     return {
         "title": title,
         "slug": slug,
         "status": status,
+        **fields,
         **formset_fields(LINES, lines),
         **formset_fields(STEPS, steps),
     }

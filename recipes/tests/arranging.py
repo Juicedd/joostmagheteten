@@ -12,8 +12,13 @@ from decimal import Decimal
 from recipes.models import Ingredient, Recipe, RecipeIngredient, Step
 
 
-def published_recipe(title):
-    return Recipe.objects.create(title=title, status=Recipe.Status.PUBLISHED)
+def published_recipe(title, **fields):
+    """A recept a visitor may read, with whatever else it is given.
+
+    Everything past the title is optional on a Recipe, so it is optional
+    here too: a test that is about the seizoen says only that.
+    """
+    return Recipe.objects.create(title=title, status=Recipe.Status.PUBLISHED, **fields)
 
 
 def ingredient_line(

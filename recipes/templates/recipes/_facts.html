@@ -1,0 +1,13 @@
+{% comment %}
+  De kerngegevens: wat iemand nodig heeft om te beslissen of hij dit vanavond
+  maakt. Welke regels er zijn bepaalt het recept zelf -- niet ingevuld is geen
+  regel, want een kop zonder antwoord kost een regel en zegt niets.
+{% endcomment %}
+{% if recipe.facts %}
+  <dl>
+    {% for fact in recipe.facts %}
+      <dt>{{ fact.term }}</dt>
+      <dd>{{ fact.value }}</dd>
+    {% endfor %}
+  </dl>
+{% endif %}

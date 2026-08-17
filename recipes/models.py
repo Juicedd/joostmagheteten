@@ -4,8 +4,8 @@ The recept and what hangs off it.
 Read CONTEXT.md before adding anything here: per ADR-0002 the identifiers are
 English and the interface is Dutch, and the glossary is the only record of
 which is which -- Ingredient is an ingrediënt, RecipeIngredient is an
-ingrediëntregel, `Step.phase` is a fase, and `is_staple` is what makes an
-ingrediënt a basisingrediënt.
+ingrediëntregel, `Step.phase` is a fase, `Fact` is a kerngegeven, and
+`is_staple` is what makes an ingrediënt a basisingrediënt.
 """
 
 from collections import namedtuple
@@ -13,7 +13,10 @@ from functools import cached_property
 from itertools import groupby
 from operator import attrgetter
 
+from django import forms
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import Truncator, slugify
 
@@ -79,6 +82,113 @@ class RecipeQuerySet(models.QuerySet):
         return self.published()
 
 
+class Difficulty(models.TextChoices):
+    """How much a recept asks of the cook.
+
+    A classificatie, so three steps and no more: whether something is a four
+    or a five out of ten is exactly the kind of judgement two cooks would
+    disagree about, and a classificatie has to be a statement they would not
+    (CONTEXT.md).
+    """
+
+    EASY = "easy", "makkelijk"
+    MEDIUM = "medium", "gemiddeld"
+    HARD = "hard", "moeilijk"
+
+
+class Season(models.TextChoices):
+    """The seizoenen a recept suits, in the order a year runs.
+
+    The order is load-bearing: the page reads them off in it, so no two
+    recepten disagree about which seizoen comes first.
+    """
+
+    SPRING = "spring", "lente"
+    SUMMER = "summer", "zomer"
+    AUTUMN = "autumn", "herfst"
+    WINTER = "winter", "winter"
+
+
+class DishType(models.TextChoices):
+    """What a recept is for: the meal it belongs to, or the part it plays.
+
+    A closed list for the reason Unit is one -- this is a filter axis later,
+    and nothing filters on a word that was typed two ways. Adding a value is
+    a migration that touches no data, so the list starts at what the recepten
+    actually are and grows when one of them needs it to.
+    """
+
+    BREAKFAST = "breakfast", "ontbijt"
+    LUNCH = "lunch", "lunch"
+    STARTER = "starter", "voorgerecht"
+    MAIN = "main", "hoofdgerecht"
+    SIDE = "side", "bijgerecht"
+    DESSERT = "dessert", "nagerecht"
+    SOUP = "soup", "soep"
+    SALAD = "salad", "salade"
+    SNACK = "snack", "borrelhap"
+    SAUCE = "sauce", "saus"
+
+
+class ChoiceArrayField(ArrayField):
+    """Several values from a closed list, ticked rather than typed.
+
+    Several, because a recept genuinely is more than one thing at once: the
+    quesadilla this site is written from is lunch and hoofdgerecht both, and
+    a recept for the whole year is all four seizoenen rather than a fifth
+    value that every filter would have to know to unpack.
+
+    Ticked, because ArrayField's own form field is a text box holding a
+    comma-separated list -- the typing problem Unit exists to prevent, one
+    level up. Handing the form a MultipleChoiceField instead makes the
+    vocabulary the only thing that can be entered, and the admin draws it as
+    checkboxes.
+    """
+
+    def formfield(self, **kwargs):
+        # ArrayField's own formfield() is skipped rather than extended: it
+        # insists on the text box, and takes no argument that turns it off.
+        return super(ArrayField, self).formfield(
+            form_class=forms.MultipleChoiceField,
+            choices=self.base_field.choices,
+            widget=forms.CheckboxSelectMultiple,
+            **kwargs,
+        )
+
+
+# Zero is not a small number here but a wrong one. A recept that needs no
+# kooktijd has none rather than nought, and "Kooktijd 0 minuten" on a page is
+# the same non-sentence as "stuk Goudse kaas" -- so it is refused while the
+# recept is written, the way an eenheid without a hoeveelheid is.
+AT_LEAST_ONE = [MinValueValidator(1)]
+
+
+def duration_label(minutes):
+    """A number of minutes as Dutch says it out loud: "1 uur 30 minuten".
+
+    Stored as a number, because "50 minuten" cannot be compared, added up or
+    filtered on; read as words, because someone working out whether there is
+    time tonight should not have to divide by sixty first.
+    """
+    if minutes is None:
+        return ""
+    hours, rest = divmod(minutes, 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours} uur")
+    # An exact number of hours says everything already; anything else ends in
+    # minutes, including a recept that takes less than one hour.
+    if rest or not hours:
+        parts.append(f"{rest} {'minuut' if rest == 1 else 'minuten'}")
+    return " ".join(parts)
+
+
+# One kerngegeven: what it is called, and what it says. It exists only where
+# the page is being written, the way a fase does -- Recipe.facts builds the
+# list, and is the only thing that knows which rows a given recept has at all.
+Fact = namedtuple("Fact", "term value")
+
+
 class Recipe(PermanentSlug):
     """A recept: a finished set of instructions a stranger could cook from."""
 
@@ -107,6 +217,57 @@ class Recipe(PermanentSlug):
         help_text="Alleen een gepubliceerd recept is zichtbaar voor bezoekers.",
     )
 
+    # Everything below is optional: a recept is written over several evenings,
+    # and a concept that is missing its kooktijd is a concept, not an error.
+    prep_minutes = models.PositiveSmallIntegerField(
+        "bereidingstijd",
+        null=True,
+        blank=True,
+        validators=AT_LEAST_ONE,
+        help_text=(
+            "In minuten, als getal: 20, niet '20 minuten'. De pagina maakt er "
+            "zelf '20 minuten' of '1 uur 30 minuten' van. Niet van toepassing? "
+            "Laat leeg -- 0 is geen tijd."
+        ),
+    )
+    cook_minutes = models.PositiveSmallIntegerField(
+        "kooktijd",
+        null=True,
+        blank=True,
+        validators=AT_LEAST_ONE,
+        help_text=(
+            "Ook in minuten, en ook leeg als er niets gekookt wordt. De totale "
+            "tijd wordt hiervan opgeteld en vul je dus nergens in."
+        ),
+    )
+    servings = models.PositiveSmallIntegerField(
+        "porties",
+        null=True,
+        blank=True,
+        validators=AT_LEAST_ONE,
+        help_text="Voor hoeveel mensen de ingrediëntregels bedoeld zijn.",
+    )
+    difficulty = models.CharField(
+        "moeilijkheidsgraad",
+        max_length=20,
+        choices=Difficulty.choices,
+        blank=True,
+    )
+    seasons = ChoiceArrayField(
+        models.CharField(max_length=20, choices=Season.choices),
+        verbose_name="seizoen",
+        default=list,
+        blank=True,
+        help_text="Alle vier aankruisen betekent: het hele jaar door.",
+    )
+    dish_types = ChoiceArrayField(
+        models.CharField(max_length=20, choices=DishType.choices),
+        verbose_name="gerechtstype",
+        default=list,
+        blank=True,
+        help_text="Meer dan één mag: een quesadilla is lunch én hoofdgerecht.",
+    )
+
     objects = RecipeQuerySet.as_manager()
 
     class Meta:
@@ -119,6 +280,76 @@ class Recipe(PermanentSlug):
     @property
     def is_published(self):
         return self.status == self.Status.PUBLISHED
+
+    @property
+    def total_minutes(self):
+        """Bereidingstijd plus kooktijd, worked out here and never stored.
+
+        A third number is a third number to keep in step, and the one that
+        gets forgotten is always the total. It is a total only while there
+        are two numbers to add: with one of them missing it would repeat the
+        other under a different word, which reads as a contradiction rather
+        than as a sum.
+        """
+        if self.prep_minutes is None or self.cook_minutes is None:
+            return None
+        return self.prep_minutes + self.cook_minutes
+
+    @property
+    def total_time_label(self):
+        # The only one of the three that is wanted anywhere but in facts():
+        # the admin shows it beside the two numbers it is made of.
+        return duration_label(self.total_minutes)
+
+    @property
+    def servings_label(self):
+        """ "4 porties", and "1 portie" for the recept that feeds one."""
+        if self.servings is None:
+            return ""
+        return f"{self.servings} {'portie' if self.servings == 1 else 'porties'}"
+
+    @property
+    def season_label(self):
+        """The seizoenen, read off in the order the year runs.
+
+        All four is not a list of four seizoenen but the statement that the
+        seizoen does not matter, and that is one thing to say -- what the
+        vault this site is written from calls "hele jaar door".
+        """
+        chosen = [season for season in Season if season in self.seasons]
+        if not chosen:
+            return ""
+        if len(chosen) == len(Season):
+            return "hele jaar door"
+        return ", ".join(season.label for season in chosen)
+
+    @property
+    def dish_type_label(self):
+        """The gerechtstypen, read off in the list's own order."""
+        return ", ".join(
+            dish_type.label for dish_type in DishType if dish_type in self.dish_types
+        )
+
+    @cached_property
+    def facts(self):
+        """The kerngegevens, in the order the page reads them out.
+
+        What a recept was not told stays off it: a recept with no seizoen
+        gets no seizoen row rather than an empty one, the same way a recept
+        with no stappen gets no Instructies heading. The page asks for this
+        twice -- once to find out whether there is a block at all, once to
+        print it -- which is what the caching is for.
+        """
+        rows = [
+            Fact("Bereidingstijd", duration_label(self.prep_minutes)),
+            Fact("Kooktijd", duration_label(self.cook_minutes)),
+            Fact("Totale tijd", self.total_time_label),
+            Fact("Porties", self.servings_label),
+            Fact("Moeilijkheidsgraad", self.get_difficulty_display()),
+            Fact("Seizoen", self.season_label),
+            Fact("Gerechtstype", self.dish_type_label),
+        ]
+        return [row for row in rows if row.value]
 
     # Cached because the page asks each of these twice -- once to decide
     # whether the group is there at all, once to print it -- and a fresh
