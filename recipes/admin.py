@@ -91,8 +91,10 @@ class RecipeAdmin(admin.ModelAdmin):
     # it added up. Shown while writing anyway, so the number the author would
     # otherwise be tempted to write down somewhere is already there.
     readonly_fields = ["total_time"]
-    # Grouped so that the line CONTEXT.md draws is a line on the form: what a
-    # visitor is told, and then what only Joost is.
+    # Grouped in the order a recept is decided on: what it is, how long it
+    # takes and how many it feeds, and then what a visitor will filter on.
+    # Every field on this form reaches the page -- there is no half of it
+    # that is only for Joost, and nothing written here is held back.
     fieldsets = [
         (None, {"fields": ["title", "slug", "status"]}),
         (
@@ -107,20 +109,6 @@ class RecipeAdmin(admin.ModelAdmin):
                     "Wat een andere kok het met je eens zou zijn. Dit staat op "
                     "de receptpagina en is later waar een bezoeker op filtert."
                 ),
-            },
-        ),
-        (
-            "Oordelen — alleen voor jou",
-            {
-                "fields": ["nutrition_score", "budget_score", "rating"],
-                "description": (
-                    "Jouw eigen cijfers. Deze komen op geen enkele pagina te "
-                    "staan en gaan ook niet mee naar zoekmachines: het is een "
-                    "mening, en de site doet er geen meting van."
-                ),
-                # Folded shut: it is the one part of this form nobody but
-                # Joost will ever see the effect of.
-                "classes": ["collapse"],
             },
         ),
     ]

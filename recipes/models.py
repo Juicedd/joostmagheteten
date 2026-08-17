@@ -16,7 +16,7 @@ from operator import attrgetter
 from django import forms
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import Truncator, slugify
 
@@ -156,11 +156,6 @@ class ChoiceArrayField(ArrayField):
         )
 
 
-# An oordeel runs from 1 to 5, the way the vault's own notes score one. Two
-# recepten have to mean the same thing by a 4, or the numbers Joost keeps are
-# not comparable to each other -- which is the only thing they are for.
-SCORE_IS_1_TO_5 = [MinValueValidator(1), MaxValueValidator(5)]
-
 # Zero is not a small number here but a wrong one. A recept that needs no
 # kooktijd has none rather than nought, and "Kooktijd 0 minuten" on a page is
 # the same non-sentence as "stuk Goudse kaas" -- so it is refused while the
@@ -273,35 +268,6 @@ class Recipe(PermanentSlug):
         help_text="Meer dan één mag: een quesadilla is lunch én hoofdgerecht.",
     )
 
-    # The oordelen. Recorded for Joost and published by nothing -- not on the
-    # page, not in the structured data (CONTEXT.md). Nothing here stops a
-    # template from printing one, which is why their absence is tested rather
-    # than trusted; see tests/test_recipe_facts.py.
-    nutrition_score = models.PositiveSmallIntegerField(
-        "voedingsscore",
-        null=True,
-        blank=True,
-        validators=SCORE_IS_1_TO_5,
-        help_text="1 tot 5, voor jezelf. Komt op geen enkele pagina te staan.",
-    )
-    budget_score = models.PositiveSmallIntegerField(
-        "budgetscore",
-        null=True,
-        blank=True,
-        validators=SCORE_IS_1_TO_5,
-        help_text="1 tot 5, voor jezelf. Komt op geen enkele pagina te staan.",
-    )
-    # "waardering" and not "rating": the identifier is the spec's, the label
-    # is Dutch (ADR-0002), and CONTEXT.md lists rating among the words this
-    # site does not use for an oordeel.
-    rating = models.PositiveSmallIntegerField(
-        "waardering",
-        null=True,
-        blank=True,
-        validators=SCORE_IS_1_TO_5,
-        help_text="1 tot 5, voor jezelf. Komt op geen enkele pagina te staan.",
-    )
-
     objects = RecipeQuerySet.as_manager()
 
     class Meta:
@@ -373,8 +339,6 @@ class Recipe(PermanentSlug):
         with no stappen gets no Instructies heading. The page asks for this
         twice -- once to find out whether there is a block at all, once to
         print it -- which is what the caching is for.
-
-        No oordeel is a kerngegeven, and this is the list the page prints.
         """
         rows = [
             Fact("Bereidingstijd", duration_label(self.prep_minutes)),

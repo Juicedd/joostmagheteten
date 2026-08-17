@@ -1,23 +1,14 @@
 """
 Tests for what a recept tells someone deciding whether to cook it -- the
-tijden, the porties and the classificaties -- and for the oordelen, which it
-tells nobody.
+tijden, the porties and the classificaties.
 
-See CLAUDE.md for how tests are written in this project. The oordeel tests at
-the bottom are the reason this module exists: they assert an absence, and an
-absence is the one thing that cannot be checked by reading the template.
+See CLAUDE.md for how tests are written in this project.
 """
 
 from django.test import TestCase
 
-from recipes.models import Difficulty, DishType, Recipe, Season, Unit
-from recipes.tests.arranging import (
-    OORDEEL_WORDS,
-    ingredient_line,
-    published_recipe,
-    step,
-)
-from recipes.tests.authors import sign_in_with_only_the_staff_flag
+from recipes.models import Difficulty, DishType, Season
+from recipes.tests.arranging import published_recipe
 
 ANDIJVIE = "Andijviestamppot"
 ANDIJVIE_URL = "/recepten/andijviestamppot/"
@@ -172,78 +163,3 @@ class ClassificatieTests(TestCase):
         self.assertNotContains(page, "Moeilijkheidsgraad")
         self.assertNotContains(page, "Seizoen")
         self.assertNotContains(page, "Gerechtstype")
-
-
-class OordeelTests(TestCase):
-    """Joost's own numbers, which no visitor is ever shown (CONTEXT.md).
-
-    An oordeel is an opinion dressed as a measurement. Publishing one would
-    make a claim the site cannot stand behind, so these are the tests that
-    have to keep working when everything else about the page changes.
-    """
-
-    def test_giving_a_recept_oordelen_changes_nothing_a_reader_sees(self):
-        # The whole requirement in one assertion, and the reason it is put
-        # this way round: looking for the digits 3, 4 and 5 in the HTML would
-        # only work while nothing else on the page has a digit in it, and the
-        # first hero photo or footer would break it for a reason that has
-        # nothing to do with a leak. The same recept before and after being
-        # given its oordelen has to be the same page, whatever is on it.
-        recipe = published_recipe(ANDIJVIE, prep_minutes=20, cook_minutes=30)
-        ingredient_line(recipe, "Andijvie", quantity="500", unit=Unit.GRAM)
-        step(recipe, 1, "Kook de aardappels gaar.")
-        before = self.client.get(ANDIJVIE_URL)
-
-        recipe.nutrition_score = 3
-        recipe.budget_score = 4
-        recipe.rating = 5
-        recipe.save()
-
-        after = self.client.get(ANDIJVIE_URL)
-        self.assertEqual(after.status_code, 200)
-        self.assertEqual(after.content, before.content)
-
-    def test_no_oordeel_is_named_on_a_finished_recept(self):
-        # The whole page this time, with everything a recept can carry on it,
-        # because a heading with nothing after it is a leak too.
-        recipe = published_recipe(
-            ANDIJVIE,
-            prep_minutes=20,
-            cook_minutes=30,
-            servings=4,
-            difficulty=Difficulty.EASY,
-            seasons=[Season.WINTER],
-            dish_types=[DishType.MAIN],
-            nutrition_score=3,
-            budget_score=4,
-            rating=5,
-        )
-        ingredient_line(recipe, "Andijvie", quantity="500", unit=Unit.GRAM)
-        step(recipe, 1, "Kook de aardappels gaar.", phase="Mise en place")
-
-        page = self.client.get(ANDIJVIE_URL)
-
-        self.assertEqual(page.status_code, 200)
-        for word in OORDEEL_WORDS:
-            with self.subTest(word=word):
-                self.assertNotContains(page, word)
-                self.assertNotContains(page, word.capitalize())
-
-    def test_the_author_previewing_a_concept_is_shown_no_oordeel_either(self):
-        # The preview is the page a visitor gets, so an oordeel that only
-        # showed up here would be one that is a single publish away from
-        # being public -- and nobody would be looking at that page again.
-        recipe = Recipe.objects.create(
-            title=ANDIJVIE, status=Recipe.Status.DRAFT, prep_minutes=20
-        )
-        sign_in_with_only_the_staff_flag(self.client)
-        before = self.client.get(ANDIJVIE_URL)
-
-        recipe.nutrition_score = 3
-        recipe.budget_score = 4
-        recipe.rating = 5
-        recipe.save()
-
-        after = self.client.get(ANDIJVIE_URL)
-        self.assertEqual(after.status_code, 200)
-        self.assertEqual(after.content, before.content)

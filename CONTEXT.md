@@ -14,6 +14,10 @@ _Avoid_: gerecht (that's the dish a recept produces, not the recept itself), not
 A private note in Joost's Obsidian vault. A notitie is raw material that a recept may later be written from. It is not an early version of a recept and carries no identity relationship to one — there is no sync, and a notitie can change or vanish without the recept caring.
 _Avoid_: draft, concept, bron
 
+**Oordeel**:
+Joost's own scoring of a recept — voedingsscore, budgetscore, waardering, each a number from 1 to 5. An oordeel lives in the vault, where it helps him decide what to cook again, and the website records none of them. It is less withheld than out of place: a recept page is written for a stranger, and a number that means something only to Joost has nothing to do there. That it is also an opinion dressed as a measurement is why it would not be published even if there were somewhere to put it.
+_Avoid_: score, rating, beoordeling
+
 **Ingrediënt**:
 A foodstuff as a thing in the world, independent of any recept — andijvie, goudse kaas, komijnpoeder. An ingrediënt carries its own Dutch-specific knowledge: season, storage, price bracket, flavour profile, what it pairs with. It is named at the level you buy it in a Dutch supermarket — rode paprika rather than paprika; verse peterselie and gedroogde peterselie rather than one peterselie. Where that level is unclear, name it more finely: too specific can be merged later, too broad cannot be split without recovering what nobody wrote down (ADR-0007). Basisingrediënten are the exception — see below. In code: `Ingredient` (ADR-0002).
 _Avoid_: product, item (you buy an ingrediënt as a product, but never call it one)
@@ -39,7 +43,7 @@ The bereidingstijd plus the kooktijd, worked out every time it is read and never
 _Avoid_: bereidingstijd (that is one of the two halves, not the whole), duur
 
 **Kerngegeven**:
-One line of the block at the top of a recept that someone deciding whether to cook it reads first — a bereidingstijd, a portie-count, a seizoen. A recept shows only the kerngegevens it has: an empty one is left out rather than printed blank. Like a fase, a kerngegeven exists only where the page is being written: `Recipe.facts` builds the list and `Fact` is its shape. No oordeel is ever a kerngegeven.
+One line of the block at the top of a recept that someone deciding whether to cook it reads first — a bereidingstijd, a portie-count, a seizoen. A recept shows only the kerngegevens it has: an empty one is left out rather than printed blank. Like a fase, a kerngegeven exists only where the page is being written: `Recipe.facts` builds the list and `Fact` is its shape.
 _Avoid_: metadata, samenvatting, receptinfo
 
 **Fase**:
@@ -62,14 +66,9 @@ _Avoid_: klad, notitie (a notitie is the private note in Obsidian and never beco
 The single status that makes a recept public, reached by an explicit act rather than by finishing the text. It is an allowlist of exactly one: anything that is not gepubliceerd is invisible, including any status added later. In code: `Recipe.status` is `published`.
 _Avoid_: live, online, af
 
-## Classificatie en oordeel
-
-Two kinds of metadata hang off a recept, and the difference between them decides what the public ever sees.
+## Classificatie
 
 **Classificatie**:
 A statement about a recept that any competent cook would broadly agree with — seizoen, gerechtstype, moeilijkheidsgraad. Classificaties are published and are the axes a visitor filters on. Each axis is a closed vocabulary, for the reason the eenheid is one: nothing filters on a word that was typed two ways. Seizoen and gerechtstype are **sets rather than single values** — a recept is lunch and hoofdgerecht at once, and one that suits the whole year carries all four seizoenen rather than a fifth value meaning "hele jaar door" that every filter would have to know to unpack. The page says "hele jaar door" when it sees all four. In code: `Recipe.difficulty` holds a `Difficulty`; `Recipe.seasons` and `Recipe.dish_types` hold lists of `Season` and `DishType`.
 _Avoid_: tag, label, categorie
 
-**Oordeel**:
-Joost's personal opinion of a recept expressed as a number from 1 to 5 — voedingsscore, budgetscore, waardering. An oordeel is recorded for Joost's own use and is **never published**: it is an opinion dressed as a measurement, and publishing it would make a claim the site can't stand behind. Nothing in the code stops a template from printing one, so the guarantee is a test that renders the same recept with and without its oordelen and demands the two pages be identical — an absence cannot be checked by reading the template. In code: `Recipe.nutrition_score`, `Recipe.budget_score` and `Recipe.rating`, whose Dutch label is **waardering**.
-_Avoid_: score, rating, beoordeling

@@ -28,7 +28,6 @@ from recipes.tests.admin_forms import (
     recipe_form,
     step_fields,
 )
-from recipes.tests.arranging import OORDEEL_WORDS
 from recipes.tests.authors import sign_in_as_the_author
 
 
@@ -499,58 +498,6 @@ class RecipeFactAuthoringTests(TestCase):
                 # was written.
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
-
-
-class OordeelAuthoringTests(TestCase):
-    """Recording Joost's own cijfers, which the site never repeats."""
-
-    def setUp(self):
-        sign_in_as_the_author(self.client)
-
-    def test_the_author_records_an_oordeel_and_finds_it_back(self):
-        publish_quesadilla(self.client, nutrition_score=3, budget_score=4, rating=5)
-
-        form = self.client.get(change_recipe("quesadilla-met-zoete-aardappel"))
-
-        self.assertEqual(form.status_code, 200)
-        self.assertContains(form, 'name="nutrition_score" value="3"')
-        self.assertContains(form, 'name="budget_score" value="4"')
-        self.assertContains(form, 'name="rating" value="5"')
-
-    def test_an_oordeel_written_here_is_named_on_no_page(self):
-        # The whole way round this time: written on the form Joost actually
-        # uses, and read back as a visitor actually reads it. Whether the
-        # numbers themselves get out is test_recipe_facts.py's question --
-        # this one is about the words, because a heading with nothing after
-        # it is a leak too.
-        publish_quesadilla(self.client, nutrition_score=3, budget_score=4, rating=5)
-
-        self.client.logout()
-        page = self.client.get(QUESADILLA_URL)
-
-        self.assertEqual(page.status_code, 200)
-        for word in OORDEEL_WORDS:
-            with self.subTest(word=word):
-                self.assertNotContains(page, word)
-                self.assertNotContains(page, word.capitalize())
-
-    def test_the_form_says_that_an_oordeel_is_never_published(self):
-        # The rule belongs where it is applied, the way ADR-0007 lives on the
-        # ingrediënt form: a glossary nobody has open while writing is not
-        # what keeps a voedingsscore off the site.
-        response = self.client.get(ADD_RECIPE)
-
-        self.assertContains(response, "Voedingsscore")
-        self.assertContains(response, "geen enkele pagina")
-
-    def test_an_oordeel_outside_the_scale_is_refused(self):
-        # 1 to 5, so that two recepten mean the same thing by a 4.
-        response = publish_quesadilla(self.client, rating=9)
-
-        # The form comes back instead of redirecting, and nothing was written.
-        self.assertEqual(response.status_code, 200)
-        self.client.logout()
-        self.assertEqual(self.client.get(QUESADILLA_URL).status_code, 404)
 
 
 class IngredientAuthoringTests(TestCase):
